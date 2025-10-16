@@ -87,6 +87,18 @@ export const useAuthStore = create((set, get) => ({
 		}
 	},
 
+		logout: () => {
+		setAuthToken(null);
+		setStoredAuth(null, null);
+
+		set({
+			user: null,
+			token: null,
+			isAuthenticated: false,
+		});
+		toast.success('Logged out successfully');
+	},
+
 	register: async (email, password, firstName, lastName) => {
 		set({ isLoading: true });
 		try {
