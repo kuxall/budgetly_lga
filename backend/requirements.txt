@@ -5,9 +5,6 @@ python-multipart==0.0.6
 
 # Authentication and security
 PyJWT==2.8.0
-google-auth==2.23.4
-google-auth-oauthlib==1.1.0
-google-auth-httplib2==0.2.0
 
 # HTTP client for AI services
 httpx==0.25.2
@@ -20,3 +17,6 @@ aiosmtplib==3.0.1
 
 # MongoDB async driver
 pymongo[srv]
+
+# Password hashing
+bcrypt==4.1.2
