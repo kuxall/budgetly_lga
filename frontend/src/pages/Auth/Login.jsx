@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Wallet, Mail, Lock } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
-import GoogleSignInButton from "../../components/ui/GoogleSignInButton";
+import GoogleSignInButton from "../../components/GoogleSignInButton";
+
 
 const Login = () => {
 	const [email, setEmail] = useState("");
@@ -113,6 +114,17 @@ const Login = () => {
 						</div>
 					</div>
 
+					<div className="flex items-center justify-between">
+						<div className="text-sm">
+							<Link
+								to="/forgot-password"
+								className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
+							>
+								Forgot your password?
+							</Link>
+						</div>
+					</div>
+
 					<button
 						type="submit"
 						disabled={isLoading}
@@ -126,34 +138,24 @@ const Login = () => {
 							<div className="w-full border-t border-gray-300" />
 						</div>
 						<div className="relative flex justify-center text-sm">
-							<span className="px-2 bg-white text-gray-500">
+							<span className="px-2 bg-gradient-to-br from-blue-50 via-white to-blue-50 text-gray-500">
 								Or continue with
 							</span>
 						</div>
 					</div>
 
-					<GoogleSignInButton text="Sign in with Google" disabled={isLoading} />
+					<GoogleSignInButton text="Sign in with Google" />
 
-					<div className="text-center space-y-2">
-						<div>
+					<div className="text-center">
+						<span className="text-sm text-gray-600">
+							Don't have an account?{" "}
 							<Link
-								to="/forgot-password"
-								className="text-sm text-blue-600 hover:text-blue-500 transition-colors"
+								to="/register"
+								className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
 							>
-								Forgot your password?
+								Sign up
 							</Link>
-						</div>
-						<div>
-							<span className="text-sm text-gray-600">
-								Don't have an account?{" "}
-								<Link
-									to="/register"
-									className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
-								>
-									Sign up
-								</Link>
-							</span>
-						</div>
+						</span>
 					</div>
 				</motion.form>
 			</motion.div>
