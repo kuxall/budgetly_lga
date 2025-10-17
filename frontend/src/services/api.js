@@ -79,6 +79,60 @@ export const authApi = {
 
 }
 
+// Settings API
+export const settingsApi = {
+	getSettings: async () => {
+		const response = await fetch(`${API_BASE_URL}/settings`, {
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+
+	updateProfile: async (profileData) => {
+		const response = await fetch(`${API_BASE_URL}/settings/profile`, {
+			method: 'PUT',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(profileData),
+		});
+		return handleResponse(response);
+	},
+
+	updatePreferences: async (preferences) => {
+		const response = await fetch(`${API_BASE_URL}/settings/preferences`, {
+			method: 'PUT',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(preferences),
+		});
+		return handleResponse(response);
+	},
+
+	updateNotifications: async (notifications) => {
+		const response = await fetch(`${API_BASE_URL}/settings/notifications`, {
+			method: 'PUT',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(notifications),
+		});
+		return handleResponse(response);
+	},
+
+	updateReceiptSettings: async (receiptSettings) => {
+		const response = await fetch(`${API_BASE_URL}/settings/receipts`, {
+			method: 'PUT',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(receiptSettings),
+		});
+		return handleResponse(response);
+	},
+
+	updateSecuritySettings: async (securitySettings) => {
+		const response = await fetch(`${API_BASE_URL}/settings/security`, {
+			method: 'PUT',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(securitySettings),
+		});
+		return handleResponse(response);
+	},
+
 	changePassword: async (currentPassword, newPassword) => {
 		const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
 			method: 'POST',
@@ -89,45 +143,82 @@ export const authApi = {
 			}),
 		});
 		return handleResponse(response);
-	}
+	},
 
-		// Google OAuth methods
-	googleOAuthLogin: async () => {
-		const response = await fetch(`${API_BASE_URL}/auth/oauth/google`, {
-			headers: { 'Content-Type': 'application/json' },
+	getStatistics: async () => {
+		const response = await fetch(`${API_BASE_URL}/settings/statistics`, {
+			headers: getAuthHeaders(),
 		});
 		return handleResponse(response);
 	},
 
-		googleOAuthCallback: async (code) => {
+	exportData: async () => {
+		const response = await fetch(`${API_BASE_URL}/settings/export-data`, {
+			method: 'POST',
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+
+	deleteAccount: async () => {
+		const response = await fetch(`${API_BASE_URL}/settings/delete-account`, {
+			method: 'DELETE',
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+};
+
+changePassword: async (currentPassword, newPassword) => {
+	const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+		method: 'POST',
+		headers: getAuthHeaders(),
+		body: JSON.stringify({
+			currentPassword,
+			newPassword
+		}),
+	});
+	return handleResponse(response);
+}
+
+// Google OAuth methods
+googleOAuthLogin: async () => {
+	const response = await fetch(`${API_BASE_URL}/auth/oauth/google`, {
+		headers: { 'Content-Type': 'application/json' },
+	});
+	return handleResponse(response);
+},
+
+	googleOAuthCallback: async (code) => {
 		const response = await fetch(`${API_BASE_URL}/auth/oauth/google/callback?code=${code}`, {
 			headers: { 'Content-Type': 'application/json' },
 		});
 		return handleResponse(response);
 	},
 
-	googleTokenLogin: async (idToken, userData = null) => {
-		const payload = {};
-		if (idToken) {
-			payload.id_token = idToken;
-		}
-		if (userData) {
-			payload.user_data = userData;
-		}
+		googleTokenLogin: async (idToken, userData = null) => {
+			const payload = {};
+			if (idToken) {
+				payload.id_token = idToken;
+			}
+			if (userData) {
+				payload.user_data = userData;
+			}
 
-		const response = await fetch(`${API_BASE_URL}/auth/oauth/google/token`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(payload),
-		});
-		return handleResponse(response);
-	},
+			const response = await fetch(`${API_BASE_URL}/auth/oauth/google/token`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload),
+			});
+			return handleResponse(response);
+		},
 
-		googleLogin: async (credentials) => {
-		const response = await fetch(`${API_BASE_URL}/auth/oauth/google/token`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(credentials),
-		});
-		return handleResponse(response);
-	},
+			googleLogin: async (credentials) => {
+				const response = await fetch(`${API_BASE_URL}/auth/oauth/google/token`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(credentials),
+				});
+				return handleResponse(response);
+			}
+
