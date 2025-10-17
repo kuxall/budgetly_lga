@@ -83,6 +83,7 @@ export const authApi = {
 		});
 		return handleResponse(response);
 	},
+};
 
 	googleOAuthLogin: async () => {
 		const response = await fetch(`${API_BASE_URL}/auth/oauth/google`, {
