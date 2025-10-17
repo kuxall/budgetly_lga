@@ -10,7 +10,7 @@ load_dotenv()
 def main():
     """Start the production server."""
     # Validate required environment variables
- 
+
     print("🚀 Starting Budgetly...")
 
     # Production configuration
