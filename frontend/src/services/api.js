@@ -90,3 +90,44 @@ export const authApi = {
 		});
 		return handleResponse(response);
 	}
+
+		// Google OAuth methods
+	googleOAuthLogin: async () => {
+		const response = await fetch(`${API_BASE_URL}/auth/oauth/google`, {
+			headers: { 'Content-Type': 'application/json' },
+		});
+		return handleResponse(response);
+	},
+
+		googleOAuthCallback: async (code) => {
+		const response = await fetch(`${API_BASE_URL}/auth/oauth/google/callback?code=${code}`, {
+			headers: { 'Content-Type': 'application/json' },
+		});
+		return handleResponse(response);
+	},
+
+	googleTokenLogin: async (idToken, userData = null) => {
+		const payload = {};
+		if (idToken) {
+			payload.id_token = idToken;
+		}
+		if (userData) {
+			payload.user_data = userData;
+		}
+
+		const response = await fetch(`${API_BASE_URL}/auth/oauth/google/token`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload),
+		});
+		return handleResponse(response);
+	},
+
+		googleLogin: async (credentials) => {
+		const response = await fetch(`${API_BASE_URL}/auth/oauth/google/token`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(credentials),
+		});
+		return handleResponse(response);
+	},
