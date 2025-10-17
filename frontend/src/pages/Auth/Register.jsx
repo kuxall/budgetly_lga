@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Wallet, Mail, Lock, User } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
-import GoogleSignInButton from "../../components/ui/GoogleSignInButton";
+import GoogleSignInButton from "../../components/GoogleSignInButton";
+
 
 const Register = () => {
 	const [formData, setFormData] = useState({
@@ -231,13 +232,13 @@ const Register = () => {
 							<div className="w-full border-t border-gray-300" />
 						</div>
 						<div className="relative flex justify-center text-sm">
-							<span className="px-2 bg-white text-gray-500">
+							<span className="px-2 bg-gradient-to-br from-blue-50 via-white to-blue-50 text-gray-500">
 								Or continue with
 							</span>
 						</div>
 					</div>
 
-					<GoogleSignInButton text="Sign up with Google" disabled={isLoading} />
+					<GoogleSignInButton text="Sign up with Google" />
 
 					<div className="text-center">
 						<span className="text-sm text-gray-600">

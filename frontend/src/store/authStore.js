@@ -1,6 +1,8 @@
 import { create } from 'zustand';
-import { authApi } from '../services/api';
-import toast from 'react-hot-toast';// Helper functions for localStorage
+import { authApi, setAuthToken } from '../services/api';
+import toast from 'react-hot-toast';
+
+// Helper functions for localStorage
 const getStoredAuth = () => {
 	try {
 		const token = localStorage.getItem('auth_token');
@@ -42,52 +44,61 @@ if (storedAuth.token) {
 	setAuthToken(storedAuth.token);
 }
 
-export const useAuthStore = create((set, get) => ({
+export const useAuthStore = create((set) => ({
 	user: storedAuth.user,
 	token: storedAuth.token,
 	isAuthenticated: !!storedAuth.token,
 	isLoading: !!storedAuth.token, // Start with loading if we have a token to validate
 
 	login: async (emailOrUser, passwordOrToken) => {
-		set({ isLoading: true });
-		try {
-			let response;
+		// Handle both login with credentials and direct login with user data + token
+		if (typeof emailOrUser === 'object' && emailOrUser.id) {
+			// Direct login with user object and token
+			const user = emailOrUser;
+			const token = passwordOrToken;
 
-			// Check if this is a direct login with user data and token (for OAuth completion)
-			if (typeof emailOrUser === 'object' && typeof passwordOrToken === 'string') {
-				// Direct login with user object and token (used by Google OAuth)
-				response = {
-					user: emailOrUser,
-					tokens: { access_token: passwordOrToken }
-				};
-			} else {
-				// Regular email/password login
-				response = await authApi.login(emailOrUser, passwordOrToken);
-			}
-
-
-
-			// Complete login
-			setAuthToken(response.tokens.access_token);
-			setStoredAuth(response.tokens.access_token, response.user);
+			setAuthToken(token);
+			setStoredAuth(token, user);
 
 			set({
-				user: response.user,
-				token: response.tokens.access_token,
+				user,
+				token,
 				isAuthenticated: true,
 				isLoading: false,
 			});
 
-			toast.success('Welcome back!');
 			return true;
-		} catch (error) {
-			set({ isLoading: false });
-			toast.error(error.message || 'Login failed');
-			return false;
+		} else {
+			// Regular login with email and password
+			const email = emailOrUser;
+			const password = passwordOrToken;
+
+			set({ isLoading: true });
+			try {
+				const response = await authApi.login(email, password);
+
+				// Complete login
+				setAuthToken(response.tokens.access_token);
+				setStoredAuth(response.tokens.access_token, response.user);
+
+				set({
+					user: response.user,
+					token: response.tokens.access_token,
+					isAuthenticated: true,
+					isLoading: false,
+				});
+
+				toast.success('Welcome back!');
+				return true;
+			} catch (error) {
+				set({ isLoading: false });
+				toast.error(error.message || 'Login failed');
+				return false;
+			}
 		}
 	},
 
-		logout: () => {
+	logout: () => {
 		setAuthToken(null);
 		setStoredAuth(null, null);
 
@@ -123,29 +134,16 @@ export const useAuthStore = create((set, get) => ({
 		}
 	},
 
-  	checkAuth: async () => {
+	checkAuth: async () => {
 		const { token, user } = getStoredAuth();
 		if (token && user) {
 			try {
 				setAuthToken(token);
-				// Optionally verify token with backend
-				const profile = await authApi.getProfile().catch(() => null);
-
-				if (profile) {
-					set({
-						user: profile,
-						token,
-						isAuthenticated: true,
-					});
-				} else {
-					// Token is invalid, clear auth
-					setStoredAuth(null, null);
-					set({
-						user: null,
-						token: null,
-						isAuthenticated: false,
-					});
-				}
+				set({
+					user,
+					token,
+					isAuthenticated: true,
+				});
 			} catch (error) {
 				// Token is invalid, clear auth
 				setStoredAuth(null, null);
@@ -178,23 +176,7 @@ export const useAuthStore = create((set, get) => ({
 				isLoading: false,
 			});
 
-			// Optionally verify the token is still valid
-			try {
-				const profile = await authApi.getProfile();
-				console.log('Token validation successful');
-				set({ user: profile, isLoading: false });
-			} catch (error) {
-				// Token is invalid, clear auth
-				console.log('Token validation failed, clearing auth:', error);
-				setStoredAuth(null, null);
-				setAuthToken(null);
-				set({
-					user: null,
-					token: null,
-					isAuthenticated: false,
-					isLoading: false,
-				});
-			}
+			console.log('Auth initialized with stored data');
 		} else {
 			set({
 				user: null,
