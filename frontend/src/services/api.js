@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8001/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
 
 class ApiError extends Error {
 	constructor(message, status) {
@@ -8,20 +8,10 @@ class ApiError extends Error {
 	}
 }
 
+// eslint-disable-next-line no-unused-vars
 let authToken = null;
 
-const getAuthHeaders = () => {
-	console.log('Getting auth headers, token exists:', !!authToken);
-	if (authToken) {
-		return {
-			'Authorization': `Bearer ${authToken}`,
-			'Content-Type': 'application/json',
-		};
-	}
-	return {
-		'Content-Type': 'application/json',
-	};
-};
+
 
 export const setAuthToken = (token) => {
 	console.log('Setting auth token:', token ? 'Token set' : 'Token cleared');
@@ -56,8 +46,6 @@ export const authApi = {
 		return handleResponse(response);
 	},
 
-
-
 	forgotPassword: async (email) => {
 		const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
 			method: 'POST',
@@ -67,67 +55,40 @@ export const authApi = {
 		return handleResponse(response);
 	},
 
-	resetPassword: async (token, newPassword) => {
+	resetPassword: async (token, new_password) => {
 		const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ token, new_password: newPassword }),
+			body: JSON.stringify({ token, new_password }),
 		});
 		return handleResponse(response);
 	},
 
-
-}
-
-	changePassword: async (currentPassword, newPassword) => {
-		const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
-			method: 'POST',
-			headers: getAuthHeaders(),
-			body: JSON.stringify({
-				currentPassword,
-				newPassword
-			}),
+	getProfile: async () => {
+		const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${authToken}`,
+			},
 		});
 		return handleResponse(response);
-	}
+	},
 
-		// Google OAuth methods
+	googleOAuthToken: async (idToken) => {
+		const response = await fetch(`${API_BASE_URL}/auth/oauth/google/token`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ id_token: idToken }),
+		});
+		return handleResponse(response);
+	},
+
 	googleOAuthLogin: async () => {
 		const response = await fetch(`${API_BASE_URL}/auth/oauth/google`, {
+			method: 'GET',
 			headers: { 'Content-Type': 'application/json' },
 		});
 		return handleResponse(response);
 	},
-
-		googleOAuthCallback: async (code) => {
-		const response = await fetch(`${API_BASE_URL}/auth/oauth/google/callback?code=${code}`, {
-			headers: { 'Content-Type': 'application/json' },
-		});
-		return handleResponse(response);
-	},
-
-	googleTokenLogin: async (idToken, userData = null) => {
-		const payload = {};
-		if (idToken) {
-			payload.id_token = idToken;
-		}
-		if (userData) {
-			payload.user_data = userData;
-		}
-
-		const response = await fetch(`${API_BASE_URL}/auth/oauth/google/token`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(payload),
-		});
-		return handleResponse(response);
-	},
-
-		googleLogin: async (credentials) => {
-		const response = await fetch(`${API_BASE_URL}/auth/oauth/google/token`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(credentials),
-		});
-		return handleResponse(response);
-	},
+};
