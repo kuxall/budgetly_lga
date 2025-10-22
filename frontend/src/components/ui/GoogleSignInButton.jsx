@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { useAuthStore } from '../store/authStore';
-import { authApi } from '../services/api';
+import { useAuthStore } from '../../store/authStore';
+import { authApi } from '../../services/api';
 
 const GoogleSignInButton = ({ text = "Continue with Google", className = "" }) => {
 	const [isLoading, setIsLoading] = useState(false);
