@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Wallet, Mail, Lock, User } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
-import GoogleSignInButton from "../../components/GoogleSignInButton";
+import GoogleSignInButton from "../../components/ui/GoogleSignInButton";
 
 
 const Register = () => {
