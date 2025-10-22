@@ -95,30 +95,23 @@ export const authApi = {
 		return handleResponse(response);
 	},
 
+// Expense API
+export const expenseApi = {
+	createExpense: async (expense) => {
+		const response = await fetch(`${API_BASE_URL}/expenses`, {
+			method: 'POST',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(expense),
+		});
+		return handleResponse(response);
+	},
+
+};
+
 	googleOAuthLogin: async () => {
 		const response = await fetch(`${API_BASE_URL}/auth/oauth/google`, {
 			method: 'GET',
 			headers: { 'Content-Type': 'application/json' },
 		});
 		return handleResponse(response);
-	},
-};
-
-// Income API
-export const incomeApi = {
-	getIncome: async () => {
-		const response = await fetch(`${API_BASE_URL}/income`, {
-			headers: getAuthHeaders(),
-		});
-		return handleResponse(response);
-	},
-
-	createIncome: async (income) => {
-		const response = await fetch(`${API_BASE_URL}/income`, {
-			method: 'POST',
-			headers: getAuthHeaders(),
-			body: JSON.stringify(income),
-		});
-		return handleResponse(response);
-	},
-};
+	}
