@@ -6,14 +6,26 @@ import Register from "./pages/Auth/Register";
 import ForgotPassword from "./pages/Auth/ForgotPassword";
 import ResetPassword from "./pages/Auth/ResetPassword";
 import Dashboard from "./pages/Dashboard";
+import Income from "./pages/Income/Income";
+import LoadingSpinner from "./components/ui/LoadingSpinner";
+
+
 import { useAuthStore } from "./store/authStore";
 
 function App() {
-  const { initializeAuth, isAuthenticated } = useAuthStore();
+  const { initializeAuth, isAuthenticated, isLoading } = useAuthStore();
 
   useEffect(() => {
     initializeAuth();
   }, [initializeAuth]);
+
+  	if (isLoading) {
+		return (
+			<div className="min-h-screen flex items-center justify-center">
+				<LoadingSpinner size="lg" />
+			</div>
+		);
+	}
 
   return (
     <Router>
@@ -51,6 +63,8 @@ function App() {
             }
           />
           <Route path="/dashboard" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
+          <Route path="income" element={<Income />} />
+
         </Routes>
       </div>
     </Router>
