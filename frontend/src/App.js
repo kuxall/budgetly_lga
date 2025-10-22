@@ -13,7 +13,7 @@ import LoadingSpinner from "./components/ui/LoadingSpinner";
 import { useAuthStore } from "./store/authStore";
 
 function App() {
-  const { initializeAuth, isAuthenticated } = useAuthStore();
+  const { initializeAuth, isAuthenticated, isLoading } = useAuthStore();
 
   useEffect(() => {
     initializeAuth();
