@@ -600,3 +600,47 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+
+
+# Income endpoints
+
+
+@app.post("/api/v1/income")
+async def create_income(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Create income record."""
+    data = await request.json()
+
+    validate_required_fields(data, ["source", "amount"])
+
+    try:
+        amount = float(data["amount"])
+        if amount <= 0:
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Amount must be a positive number"
+        )
+
+    income_id = secrets.token_urlsafe(16)
+    income = {
+        "id": income_id,
+        "user_id": current_user["id"],
+        "source": data["source"],
+        "amount": amount,
+        "date": data.get("date", datetime.utcnow().date().isoformat()),
+        "description": data.get("description", ""),
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat()
+    }
+
+    data_service.add_income(income)
+    return income
+
+
+@app.get("/api/v1/income")
+async def get_income(current_user: Dict = Depends(get_current_user)):
+    """Get user income records."""
+    user_income = [inc for inc in data_service.income_db if inc["user_id"]
+                   == current_user["id"]]
+    return user_income

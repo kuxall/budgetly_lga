@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 
 class ApiError extends Error {
 	constructor(message, status) {
@@ -11,7 +11,18 @@ class ApiError extends Error {
 // eslint-disable-next-line no-unused-vars
 let authToken = null;
 
-
+const getAuthHeaders = () => {
+	console.log('Getting auth headers, token exists:', !!authToken);
+	if (authToken) {
+		return {
+			'Authorization': `Bearer ${authToken}`,
+			'Content-Type': 'application/json',
+		};
+	}
+	return {
+		'Content-Type': 'application/json',
+	};
+};
 
 export const setAuthToken = (token) => {
 	console.log('Setting auth token:', token ? 'Token set' : 'Token cleared');
@@ -83,12 +94,30 @@ export const authApi = {
 		});
 		return handleResponse(response);
 	},
-};
 
 	googleOAuthLogin: async () => {
 		const response = await fetch(`${API_BASE_URL}/auth/oauth/google`, {
 			method: 'GET',
 			headers: { 'Content-Type': 'application/json' },
+		});
+		return handleResponse(response);
+	},
+};
+
+// Income API
+export const incomeApi = {
+	getIncome: async () => {
+		const response = await fetch(`${API_BASE_URL}/income`, {
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+
+	createIncome: async (income) => {
+		const response = await fetch(`${API_BASE_URL}/income`, {
+			method: 'POST',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(income),
 		});
 		return handleResponse(response);
 	},

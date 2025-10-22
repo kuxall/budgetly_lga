@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pdb
+*.egg-info/
+venv/
+env/
+ENV/
+.venv/
+
+# Environment
+.env
+.env.*
+
+# VSCode
+.vscode/
+
+# Data
+*.sqlite3
+*.db
+*.log
+*.bak
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Misc
+*.swp
+*.swo
+
+# Ignore data files
+/data/*.json
