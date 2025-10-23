@@ -299,6 +299,10 @@ class DataService:
         """Force save all data immediately."""
         self._save_all_data()
 
+    def save_data(self):
+        """Save all data - alias for force_save."""
+        self._save_all_data()
+
     def get_user(self, user_id: str) -> Optional[Dict]:
         """Get user by ID."""
         return self._users_db.get(user_id)
