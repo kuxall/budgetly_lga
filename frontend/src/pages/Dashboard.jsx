@@ -1,218 +1,287 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 import {
-	Wallet,
 	TrendingUp,
-	PieChart,
+	TrendingDown,
 	Target,
 	CreditCard,
-	BarChart3,
-	Shield
+	Plus,
+	DollarSign,
+	AlertTriangle,
+	ArrowUpRight,
+	ArrowDownRight,
+	CheckCircle
 } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
+import { useExpenseStore } from "../store/expenseStore";
+import { useIncomeStore } from "../store/incomeStore";
+import { useBudgetStore } from "../store/budgetStore";
+import MainLayout from "../components/layout/MainLayout";
 
 const Dashboard = () => {
-	const { user, logout } = useAuthStore();
+	const { user } = useAuthStore();
+	const { expenses, fetchExpenses } = useExpenseStore();
+	const { income, fetchIncome } = useIncomeStore();
+	const { budgets, fetchBudgets, getBudgetProgress } = useBudgetStore();
 
-	const features = [
-		{
-			icon: <PieChart className="h-8 w-8" />,
-			title: "Expense Tracking",
-			description: "Track your daily expenses with smart categorization and visual insights.",
-			color: "from-blue-500 to-blue-600"
-		},
-		{
-			icon: <Target className="h-8 w-8" />,
-			title: "Budget Planning",
-			description: "Set realistic budgets and get alerts when you're approaching limits.",
-			color: "from-green-500 to-green-600"
-		},
-		{
-			icon: <TrendingUp className="h-8 w-8" />,
-			title: "Financial Insights",
-			description: "AI-powered analytics to help you understand your spending patterns.",
-			color: "from-purple-500 to-purple-600"
-		},
-		{
-			icon: <CreditCard className="h-8 w-8" />,
-			title: "Multiple Accounts",
-			description: "Manage multiple bank accounts and credit cards in one place.",
-			color: "from-orange-500 to-orange-600"
-		},
-		{
-			icon: <BarChart3 className="h-8 w-8" />,
-			title: "Reports & Analytics",
-			description: "Detailed reports with charts and graphs to visualize your finances.",
-			color: "from-pink-500 to-pink-600"
-		},
-		{
-			icon: <Shield className="h-8 w-8" />,
-			title: "Secure & Private",
-			description: "Bank-level security with end-to-end encryption for your data.",
-			color: "from-indigo-500 to-indigo-600"
-		}
-	];
+	useEffect(() => {
+		fetchExpenses();
+		fetchIncome();
+		fetchBudgets();
+	}, [fetchExpenses, fetchIncome, fetchBudgets]);
 
+	// Calculate current month totals
+	const currentDate = new Date();
+	const currentMonth = currentDate.getMonth();
+	const currentYear = currentDate.getFullYear();
 
+	const monthlyExpenses = expenses
+		.filter(expense => {
+			const expenseDate = new Date(expense.date);
+			return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
+		})
+		.reduce((total, expense) => total + expense.amount, 0);
+
+	const monthlyIncome = income
+		.filter(inc => {
+			const incomeDate = new Date(inc.date);
+			return incomeDate.getMonth() === currentMonth && incomeDate.getFullYear() === currentYear;
+		})
+		.reduce((total, inc) => total + inc.amount, 0);
+
+	const netIncome = monthlyIncome - monthlyExpenses;
+
+	// Get budget alerts
+	const budgetAlerts = budgets
+		.map(budget => {
+			const progress = getBudgetProgress(budget.id, expenses);
+			const percentage = (progress.spent / budget.amount) * 100;
+			return { ...budget, progress, percentage };
+		})
+		.filter(budget => budget.percentage >= 90)
+		.sort((a, b) => b.percentage - a.percentage);
+
+	const formatCurrency = (amount) => {
+		return new Intl.NumberFormat("en-CA", {
+			style: "currency",
+			currency: "CAD",
+		}).format(amount);
+	};
 
 	return (
-		<div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-			{/* Header */}
-			<header className="bg-white shadow-sm border-b">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-					<div className="flex justify-between items-center h-16">
-						<div className="flex items-center">
-							<div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-								<Wallet className="h-5 w-5 text-white" />
-							</div>
-							<h1 className="ml-3 text-xl font-bold text-gray-900">Budgetly</h1>
-						</div>
-						<div className="flex items-center space-x-4">
-							<span className="text-sm text-gray-600">
-								Welcome, {user?.first_name || user?.email}!
-							</span>
-							<button
-								onClick={logout}
-								className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-							>
-								Logout
-							</button>
-						</div>
+		<MainLayout>
+			<div className="space-y-6">
+				{/* Welcome Header */}
+				<div className="flex items-center justify-between">
+					<div>
+						<h1 className="text-2xl font-bold text-gray-900">
+							Welcome back, {user?.first_name || 'User'}!
+						</h1>
 					</div>
 				</div>
-			</header>
 
-			{/* Main Content */}
-			<main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-				{/* Hero Section */}
-				<motion.div
-					initial={{ opacity: 0, y: 20 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ duration: 0.6 }}
-					className="text-center mb-16"
-				>
+				{/* Budget Alerts */}
+				{/* {budgetAlerts.length > 0 && (
 					<motion.div
-						initial={{ scale: 0 }}
-						animate={{ scale: 1 }}
-						transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-						className="mx-auto h-20 w-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-xl mb-8"
+						initial={{ opacity: 0, y: -10 }}
+						animate={{ opacity: 1, y: 0 }}
+						className="bg-red-50 border border-red-200 rounded-lg p-4"
 					>
-						<Wallet className="h-10 w-10 text-white" />
+						<div className="flex items-center space-x-2 text-red-800 mb-2">
+							<AlertTriangle className="h-5 w-5" />
+							<h3 className="font-medium">Budget Alert</h3>
+						</div>
+						<div className="space-y-1">
+							{budgetAlerts.slice(0, 2).map(budget => (
+								<p key={budget.id} className="text-red-700 text-sm">
+									<span className="font-medium">{budget.category}</span>: {budget.percentage >= 100 ? 'Exceeded' : `${budget.percentage.toFixed(0)}% used`}
+								</p>
+							))}
+							{budgetAlerts.length > 2 && (
+								<Link to="/budget" className="text-red-600 text-sm hover:underline">
+									View all {budgetAlerts.length} alerts →
+								</Link>
+							)}
+						</div>
+					</motion.div>
+				)} */}
+
+				{/* Financial Overview Cards */}
+				<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+					{/* Monthly Income */}
+					<motion.div
+						initial={{ opacity: 0, y: 20 }}
+						animate={{ opacity: 1, y: 0 }}
+						transition={{ delay: 0.1 }}
+						className="bg-white rounded-lg shadow-sm border p-6"
+					>
+						<div className="flex items-center justify-between">
+							<div>
+								<p className="text-sm font-medium text-gray-600">Monthly Income</p>
+								<p className="text-2xl font-bold text-green-600">{formatCurrency(monthlyIncome)}</p>
+							</div>
+							<div className="p-3 bg-green-100 rounded-full">
+								<ArrowUpRight className="h-6 w-6 text-green-600" />
+							</div>
+						</div>
 					</motion.div>
 
-					<h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-						Welcome to{" "}
-						<span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-							Budgetly
-						</span>
-					</h1>
-
-					<p className="text-xl text-gray-600 max-w-3xl mx-auto mb-8">
-						Your AI-powered personal finance manager. Take control of your money,
-						track expenses, set budgets, and achieve your financial goals with intelligent insights.
-					</p>
-
-					<div className="flex flex-col sm:flex-row gap-4 justify-center">
-						<motion.button
-							whileHover={{ scale: 1.05 }}
-							whileTap={{ scale: 0.95 }}
-							className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
-						>
-							Start Managing Finances
-						</motion.button>
-						<motion.button
-							whileHover={{ scale: 1.05 }}
-							whileTap={{ scale: 0.95 }}
-							className="px-8 py-3 border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:border-gray-400 transition-colors"
-						>
-							View Demo
-						</motion.button>
-					</div>
-				</motion.div>
-
-
-
-				{/* Features Section */}
-				<motion.div
-					initial={{ opacity: 0 }}
-					animate={{ opacity: 1 }}
-					transition={{ delay: 0.6, duration: 0.6 }}
-					className="mb-16"
-				>
-					<div className="text-center mb-12">
-						<h2 className="text-3xl font-bold text-gray-900 mb-4">
-							Powerful Features for Smart Money Management
-						</h2>
-						<p className="text-lg text-gray-600 max-w-2xl mx-auto">
-							Everything you need to take control of your finances and build a better financial future.
-						</p>
-					</div>
-
-					<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-						{features.map((feature, index) => (
-							<motion.div
-								key={feature.title}
-								initial={{ opacity: 0, y: 20 }}
-								animate={{ opacity: 1, y: 0 }}
-								transition={{ delay: 0.7 + index * 0.1 }}
-								whileHover={{ y: -5 }}
-								className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300"
-							>
-								<div className={`inline-flex p-3 rounded-lg bg-gradient-to-r ${feature.color} text-white mb-4`}>
-									{feature.icon}
-								</div>
-								<h3 className="text-xl font-semibold text-gray-900 mb-2">
-									{feature.title}
-								</h3>
-								<p className="text-gray-600">
-									{feature.description}
-								</p>
-							</motion.div>
-						))}
-					</div>
-				</motion.div>
-
-				{/* CTA Section */}
-				<motion.div
-					initial={{ opacity: 0, y: 20 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={{ delay: 1, duration: 0.6 }}
-					className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-8 md:p-12 text-center text-white"
-				>
-					<h2 className="text-3xl font-bold mb-4">
-						Ready to Transform Your Financial Life?
-					</h2>
-					<p className="text-xl opacity-90 mb-8 max-w-2xl mx-auto">
-						Join thousands of users who have already taken control of their finances with Budgetly's intelligent tools.
-					</p>
-					<motion.button
-						whileHover={{ scale: 1.05 }}
-						whileTap={{ scale: 0.95 }}
-						className="px-8 py-3 bg-white text-blue-600 font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+					{/* Monthly Expenses */}
+					<motion.div
+						initial={{ opacity: 0, y: 20 }}
+						animate={{ opacity: 1, y: 0 }}
+						transition={{ delay: 0.2 }}
+						className="bg-white rounded-lg shadow-sm border p-6"
 					>
-						Get Started Now
-					</motion.button>
-				</motion.div>
-			</main>
-
-			{/* Footer */}
-			<footer className="bg-gray-900 text-white py-8 mt-16">
-				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-					<div className="flex items-center justify-center mb-4">
-						<div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center mr-3">
-							<Wallet className="h-5 w-5 text-white" />
+						<div className="flex items-center justify-between">
+							<div>
+								<p className="text-sm font-medium text-gray-600">Monthly Expenses</p>
+								<p className="text-2xl font-bold text-red-600">{formatCurrency(monthlyExpenses)}</p>
+							</div>
+							<div className="p-3 bg-red-100 rounded-full">
+								<ArrowDownRight className="h-6 w-6 text-red-600" />
+							</div>
 						</div>
-						<span className="text-xl font-bold">Budgetly</span>
-					</div>
-					<p className="text-gray-400 mb-4">
-						AI-Powered Personal Finance Management Platform
-					</p>
-					<p className="text-sm text-gray-500">
-						© 2025 Budgetly by Lumen Grove Analytics. All rights reserved.
-					</p>
+					</motion.div>
+
+					{/* Net Income */}
+					<motion.div
+						initial={{ opacity: 0, y: 20 }}
+						animate={{ opacity: 1, y: 0 }}
+						transition={{ delay: 0.3 }}
+						className="bg-white rounded-lg shadow-sm border p-6"
+					>
+						<div className="flex items-center justify-between">
+							<div>
+								<p className="text-sm font-medium text-gray-600">Net Income</p>
+								<p className={`text-2xl font-bold ${netIncome >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+									{formatCurrency(netIncome)}
+								</p>
+							</div>
+							<div className={`p-3 rounded-full ${netIncome >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
+								{netIncome >= 0 ?
+									<TrendingUp className="h-6 w-6 text-green-600" /> :
+									<TrendingDown className="h-6 w-6 text-red-600" />
+								}
+							</div>
+						</div>
+					</motion.div>
 				</div>
-			</footer>
-		</div>
+
+				{/* Quick Actions */}
+				<div className="bg-white rounded-lg shadow-sm border p-6">
+					<h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+					<div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+						<Link to="/expenses">
+							<motion.button
+								whileHover={{ scale: 1.02 }}
+								whileTap={{ scale: 0.98 }}
+								className="w-full p-4 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors group"
+							>
+								<div className="flex flex-col items-center space-y-2">
+									<div className="p-2 bg-red-100 group-hover:bg-red-200 rounded-full">
+										<Plus className="h-5 w-5 text-red-600" />
+									</div>
+									<span className="text-sm font-medium text-red-700">Add Expense</span>
+								</div>
+							</motion.button>
+						</Link>
+
+						<Link to="/income">
+							<motion.button
+								whileHover={{ scale: 1.02 }}
+								whileTap={{ scale: 0.98 }}
+								className="w-full p-4 bg-green-50 hover:bg-green-100 rounded-lg border border-green-200 transition-colors group"
+							>
+								<div className="flex flex-col items-center space-y-2">
+									<div className="p-2 bg-green-100 group-hover:bg-green-200 rounded-full">
+										<DollarSign className="h-5 w-5 text-green-600" />
+									</div>
+									<span className="text-sm font-medium text-green-700">Add Income</span>
+								</div>
+							</motion.button>
+						</Link>
+
+						<Link to="/budget">
+							<motion.button
+								whileHover={{ scale: 1.02 }}
+								whileTap={{ scale: 0.98 }}
+								className="w-full p-4 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors group"
+							>
+								<div className="flex flex-col items-center space-y-2">
+									<div className="p-2 bg-blue-100 group-hover:bg-blue-200 rounded-full">
+										<Target className="h-5 w-5 text-blue-600" />
+									</div>
+									<span className="text-sm font-medium text-blue-700">Set Budget</span>
+								</div>
+							</motion.button>
+						</Link>
+
+
+					</div>
+				</div>
+
+				{/* Recent Activity */}
+				<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+					{/* Recent Expenses */}
+					<div className="bg-white rounded-lg shadow-sm border p-6">
+						<div className="flex items-center justify-between mb-4">
+							<h3 className="text-lg font-semibold text-gray-900">Recent Expenses</h3>
+							<Link to="/expenses" className="text-blue-600 text-sm hover:underline">View all</Link>
+						</div>
+						<div className="space-y-3">
+							{expenses.slice(0, 3).map((expense) => (
+								<div key={expense.id} className="flex items-center justify-between py-2">
+									<div>
+										<p className="text-sm font-medium text-gray-900">{expense.description}</p>
+										<p className="text-xs text-gray-500">{expense.category}</p>
+									</div>
+									<span className="text-sm font-semibold text-red-600">-{formatCurrency(expense.amount)}</span>
+								</div>
+							))}
+							{expenses.length === 0 && (
+								<p className="text-gray-500 text-sm text-center py-4">No expenses yet</p>
+							)}
+						</div>
+					</div>
+
+					{/* Budget Status */}
+					<div className="bg-white rounded-lg shadow-sm border p-6">
+						<div className="flex items-center justify-between mb-4">
+							<h3 className="text-lg font-semibold text-gray-900">Budget Status</h3>
+							<Link to="/budget" className="text-blue-600 text-sm hover:underline">View all</Link>
+						</div>
+						<div className="space-y-3">
+							{budgets.slice(0, 3).map((budget) => {
+								const progress = getBudgetProgress(budget.id, expenses);
+								const percentage = (progress.spent / budget.amount) * 100;
+								return (
+									<div key={budget.id} className="space-y-2">
+										<div className="flex items-center justify-between">
+											<span className="text-sm font-medium text-gray-900">{budget.category}</span>
+											<span className="text-xs text-gray-500">{percentage.toFixed(0)}%</span>
+										</div>
+										<div className="w-full bg-gray-200 rounded-full h-2">
+											<div
+												className={`h-2 rounded-full ${percentage >= 100 ? 'bg-red-500' :
+													percentage >= 90 ? 'bg-orange-500' :
+														percentage >= 75 ? 'bg-yellow-500' : 'bg-green-500'
+													}`}
+												style={{ width: `${Math.min(percentage, 100)}%` }}
+											></div>
+										</div>
+									</div>
+								);
+							})}
+							{budgets.length === 0 && (
+								<p className="text-gray-500 text-sm text-center py-4">No budgets set</p>
+							)}
+						</div>
+					</div>
+				</div>
+			</div>
+		</MainLayout>
 	);
 };
 
