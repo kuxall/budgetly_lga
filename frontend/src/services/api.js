@@ -8,7 +8,6 @@ class ApiError extends Error {
 	}
 }
 
-// eslint-disable-next-line no-unused-vars
 let authToken = null;
 
 const getAuthHeaders = () => {
@@ -95,8 +94,53 @@ export const authApi = {
 		return handleResponse(response);
 	},
 
+	googleOAuthLogin: async () => {
+		const response = await fetch(`${API_BASE_URL}/auth/oauth/google`, {
+			method: 'GET',
+			headers: { 'Content-Type': 'application/json' },
+		});
+		return handleResponse(response);
+	}
+};
+
+// Income API
+export const incomeApi = {
+	getIncome: async () => {
+		const response = await fetch(`${API_BASE_URL}/income`, {
+			method: 'GET',
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+
+	createIncome: async (income) => {
+		const response = await fetch(`${API_BASE_URL}/income`, {
+			method: 'POST',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(income),
+		});
+		return handleResponse(response);
+	},
+
+	// deleteIncome: async (incomeId) => {
+	// 	const response = await fetch(`${API_BASE_URL}/income/${incomeId}`, {
+	// 		method: 'DELETE',
+	// 		headers: getAuthHeaders(),
+	// 	});
+	// 	return handleResponse(response);
+	// }
+};
+
 // Expense API
 export const expenseApi = {
+	getExpenses: async () => {
+		const response = await fetch(`${API_BASE_URL}/expenses`, {
+			method: 'GET',
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+
 	createExpense: async (expense) => {
 		const response = await fetch(`${API_BASE_URL}/expenses`, {
 			method: 'POST',
@@ -106,12 +150,39 @@ export const expenseApi = {
 		return handleResponse(response);
 	},
 
+	// deleteExpense: async (expenseId) => {
+	// 	const response = await fetch(`${API_BASE_URL}/expenses/${expenseId}`, {
+	// 		method: 'DELETE',
+	// 		headers: getAuthHeaders(),
+	// 	});
+	// 	return handleResponse(response);
+	// }
 };
 
-	googleOAuthLogin: async () => {
-		const response = await fetch(`${API_BASE_URL}/auth/oauth/google`, {
+// Budget API
+export const budgetApi = {
+	getBudgets: async () => {
+		const response = await fetch(`${API_BASE_URL}/budgets`, {
 			method: 'GET',
-			headers: { 'Content-Type': 'application/json' },
+			headers: getAuthHeaders(),
 		});
 		return handleResponse(response);
-	}
+	},
+
+	createBudget: async (budget) => {
+		const response = await fetch(`${API_BASE_URL}/budgets`, {
+			method: 'POST',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(budget),
+		});
+		return handleResponse(response);
+	},
+
+	// deleteBudget: async (budgetId) => {
+	// 	const response = await fetch(`${API_BASE_URL}/budgets/${budgetId}`, {
+	// 		method: 'DELETE',
+	// 		headers: getAuthHeaders(),
+	// 	});
+	// 	return handleResponse(response);
+	// }
+};
