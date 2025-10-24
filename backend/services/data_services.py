@@ -17,7 +17,6 @@ class DataService:
         self.budgets_file = os.path.join(data_dir, "budgets.json")
         self.income_file = os.path.join(data_dir, "income.json")
         self.reset_tokens_file = os.path.join(data_dir, "reset_tokens.json")
-        self.receipts_file = os.path.join(data_dir, "receipts.json")
 
         # Create data directory if it doesn't exist
         os.makedirs(data_dir, exist_ok=True)
@@ -28,7 +27,6 @@ class DataService:
         self._budgets_db: List[Dict] = []
         self._income_db: List[Dict] = []
         self._reset_tokens_db: Dict[str, Dict] = {}
-        self._receipts_db: List[Dict] = []
 
         # Load existing data
         self.load_all_data()
@@ -103,14 +101,13 @@ class DataService:
         self._income_db = self._load_json_file(self.income_file, [])
         self._reset_tokens_db = self._load_json_file(
             self.reset_tokens_file, {})
-        self._receipts_db = self._load_json_file(self.receipts_file, [])
 
         # Clean up expired reset tokens
         self._cleanup_expired_tokens()
 
-        logger.info("Data loaded: %d users, %d expenses, %d budgets, %d income records, %d receipts",
+        logger.info("Data loaded: %d users, %d expenses, %d budgets, %d income records",
                     len(self._users_db), len(self._expenses_db),
-                    len(self._budgets_db), len(self._income_db), len(self._receipts_db))
+                    len(self._budgets_db), len(self._income_db))
 
     def _save_all_data(self):
         """Save all data to files."""
@@ -119,7 +116,6 @@ class DataService:
             self._save_json_file(self.expenses_file, self._expenses_db)
             self._save_json_file(self.budgets_file, self._budgets_db)
             self._save_json_file(self.income_file, self._income_db)
-            self._save_json_file(self.receipts_file, self._receipts_db)
             self._save_json_file(self.reset_tokens_file, self._reset_tokens_db)
             logger.debug("All data saved successfully")
         except Exception as e:
@@ -299,42 +295,27 @@ class DataService:
         """Force save all data immediately."""
         self._save_all_data()
 
-    def save_data(self):
-        """Save all data - alias for force_save."""
-        self._save_all_data()
-
-    def get_user(self, user_id: str) -> Optional[Dict]:
-        """Get user by ID."""
-        return self._users_db.get(user_id)
-
-    def get_frontend_url(self) -> str:
-        """Get frontend URL from environment."""
-        import os
-        return os.getenv("FRONTEND_URL", "http://localhost:3000")
-
-    # Receipts
-    @property
-    def receipts_db(self) -> List[Dict]:
-        return self._receipts_db
-
-    def add_receipt(self, receipt: Dict):
-        """Add a receipt record."""
-        self._receipts_db.append(receipt)
-        self._save_json_file(self.receipts_file, self._receipts_db)
-
-    def get_user_receipts(self, user_id: str) -> List[Dict]:
-        """Get all receipts for a user."""
-        return [receipt for receipt in self._receipts_db if receipt.get("user_id") == user_id]
-
-    def delete_receipt(self, receipt_id: str) -> bool:
-        """Delete a receipt by ID."""
-        for i, receipt in enumerate(self._receipts_db):
-            if receipt.get("id") == receipt_id:
-                del self._receipts_db[i]
-                self._save_json_file(self.receipts_file, self._receipts_db)
-                return True
-        return False
-
 
 # Create global instance
-data_service = DataService()
+# Allow switching to MongoDB-backed service via environment variable
+use_mongo = os.getenv("USE_MONGO", "false").lower() == "true"
+
+if use_mongo:
+    # Strict initialization: attempt to connect/ping MongoDB and fail loudly if unreachable.
+    # This ensures the app won't silently fall back to local JSON files and masks connection issues.
+    import certifi
+    from pymongo import MongoClient
+    from services.mongo_data_service import MongoDataServiceSyncWrapper
+
+    mongo_uri = os.getenv("MONGODB_URI")
+    mongo_db = os.getenv("MONGODB_DB")
+
+    # Quick ping with a short timeout; allow exceptions to propagate so startup fails when DB is unreachable
+    client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
+    client.admin.command('ping')
+
+    # Ping succeeded, use the Mongo wrapper
+    data_service = MongoDataServiceSyncWrapper(uri=mongo_uri, db_name=mongo_db)
+    logger.info("Using MongoDB-backed data service")
+else:
+    data_service = DataService()
