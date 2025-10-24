@@ -20,3 +20,8 @@ pymongo[srv]
 
 # Password hashing
 bcrypt==4.1.2
+
+
+# MongoDB async driver
+motor
+pymongo[srv]
