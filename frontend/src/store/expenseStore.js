@@ -80,21 +80,6 @@ export const useExpenseStore = create((set, get) => ({
 		}
 	},
 
-	// Delete functionality disabled for now - focusing on creation and tracking
-	// deleteExpense: async (expenseId) => {
-	// 	try {
-	// 		await expenseApi.deleteExpense(expenseId);
-	// 		const currentExpenses = get().expenses;
-	// 		set({
-	// 			expenses: currentExpenses.filter(expense => expense.id !== expenseId)
-	// 		});
-	// 		toast.success('Expense deleted successfully!');
-	// 	} catch (error) {
-	// 		toast.error(error.message || 'Failed to delete expense');
-	// 		throw error;
-	// 	}
-	// },
-
 	// Get total expenses
 	getTotalExpenses: () => {
 		const { expenses } = get();
