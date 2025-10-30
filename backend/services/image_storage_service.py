@@ -26,18 +26,13 @@ class PersistentReceiptStorage:
         self._start_cleanup_task()
 
     def _get_storage_backend(self):
-        """Get storage backend (MongoDB or JSON files)"""
-        use_mongo = os.getenv("USE_MONGO", "false").lower() == "true"
-
-        if use_mongo:
-            try:
-                from .mongo_receipt_storage import MongoReceiptStorage
-                return MongoReceiptStorage()
-            except ImportError:
-                print("MongoDB not available, falling back to JSON storage")
-                return JSONReceiptStorage()
-        else:
-            return JSONReceiptStorage()
+        """Get storage backend - Always use MongoDB"""
+        try:
+            from .mongo_receipt_storage import MongoReceiptStorage
+            return MongoReceiptStorage()
+        except ImportError:
+            raise ImportError(
+                "MongoDB receipt storage is required but not available")
 
     def store_receipt(self, image_data: bytes, user_id: str, filename: str,
                       extracted_data: Optional[Dict] = None) -> str:
@@ -231,145 +226,7 @@ class PersistentReceiptStorage:
                 print(f"Error in cleanup loop: {str(e)}")
 
 
-class JSONReceiptStorage:
-    """JSON file-based receipt storage backend"""
-
-    def __init__(self):
-        self.storage_dir = Path("receipts")
-        self.storage_dir.mkdir(parents=True, exist_ok=True)
-        self.receipts_file = self.storage_dir / "receipts.json"
-
-        # Initialize storage file if it doesn't exist
-        if not self.receipts_file.exists():
-            self._save_receipts({})
-
-    def save_receipt(self, token: str, receipt_record: Dict) -> bool:
-        """Save receipt to JSON file"""
-        try:
-            receipts = self._load_receipts()
-            receipts[token] = receipt_record
-            self._save_receipts(receipts)
-            return True
-        except Exception as e:
-            print(f"Error saving receipt to JSON: {str(e)}")
-            return False
-
-    def get_receipt(self, token: str) -> Optional[Dict]:
-        """Get receipt from JSON file"""
-        try:
-            receipts = self._load_receipts()
-            return receipts.get(token)
-        except Exception as e:
-            print(f"Error getting receipt from JSON: {str(e)}")
-            return None
-
-    def update_receipt(self, token: str, receipt_record: Dict) -> bool:
-        """Update receipt in JSON file"""
-        try:
-            receipts = self._load_receipts()
-            if token in receipts:
-                receipts[token] = receipt_record
-                self._save_receipts(receipts)
-                return True
-            return False
-        except Exception as e:
-            print(f"Error updating receipt in JSON: {str(e)}")
-            return False
-
-    def delete_receipt(self, token: str) -> bool:
-        """Delete receipt from JSON file"""
-        try:
-            receipts = self._load_receipts()
-            if token in receipts:
-                del receipts[token]
-                self._save_receipts(receipts)
-                return True
-            return False
-        except Exception as e:
-            print(f"Error deleting receipt from JSON: {str(e)}")
-            return False
-
-    def list_user_receipts(self, user_id: str) -> List[Dict]:
-        """List all receipts for a user"""
-        try:
-            receipts = self._load_receipts()
-            user_receipts = []
-
-            for receipt in receipts.values():
-                if receipt.get("user_id") == user_id:
-                    user_receipts.append(receipt)
-
-            return user_receipts
-        except Exception as e:
-            print(f"Error listing user receipts from JSON: {str(e)}")
-            return []
-
-    def cleanup_expired_receipts(self) -> int:
-        """Clean up expired receipts"""
-        try:
-            receipts = self._load_receipts()
-            current_time = datetime.now()
-            expired_tokens = []
-
-            for token, receipt in receipts.items():
-                expires_at = datetime.fromisoformat(receipt["expires_at"])
-                if current_time > expires_at:
-                    expired_tokens.append(token)
-
-            # Remove expired receipts
-            for token in expired_tokens:
-                del receipts[token]
-
-            if expired_tokens:
-                self._save_receipts(receipts)
-
-            return len(expired_tokens)
-        except Exception as e:
-            print(f"Error cleaning up expired receipts: {str(e)}")
-            return 0
-
-    def get_storage_stats(self) -> Dict:
-        """Get storage statistics"""
-        try:
-            receipts = self._load_receipts()
-            current_time = datetime.now()
-
-            total_receipts = len(receipts)
-            expired_count = 0
-            total_size = 0
-
-            for receipt in receipts.values():
-                expires_at = datetime.fromisoformat(receipt["expires_at"])
-                if current_time > expires_at:
-                    expired_count += 1
-
-                # Estimate size (base64 encoded image data)
-                image_data_size = len(receipt.get("image_data", ""))
-                total_size += image_data_size
-
-            return {
-                "backend": "json",
-                "total_receipts": total_receipts,
-                "active_receipts": total_receipts - expired_count,
-                "expired_receipts": expired_count,
-                "estimated_size_mb": round(total_size / (1024 * 1024), 2),
-                "storage_file": str(self.receipts_file)
-            }
-        except Exception as e:
-            return {"error": str(e)}
-
-    def _load_receipts(self) -> Dict:
-        """Load receipts from JSON file"""
-        try:
-            with open(self.receipts_file, 'r') as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
-
-    def _save_receipts(self, receipts: Dict):
-        """Save receipts to JSON file"""
-        with open(self.receipts_file, 'w') as f:
-            json.dump(receipts, f, indent=2)
+# JSON storage removed - MongoDB only
 
 
 # Global instance
