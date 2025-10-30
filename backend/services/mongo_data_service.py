@@ -19,7 +19,7 @@ class MongoDataService:
     def __init__(self, uri: str = None, db_name: str = "budgetly"):
         self.uri = uri or os.getenv("MONGODB_URI", "mongodb://localhost:27017")
         self.db_name = db_name or os.getenv("MONGODB_DB", "budgetly")
-        self._client = AsyncIOMotorClient(self.uri,tlsCAFile=certifi.where())
+        self._client = AsyncIOMotorClient(self.uri, tlsCAFile=certifi.where())
         self._db = self._client[self.db_name]
 
     # Async helpers
@@ -54,7 +54,8 @@ class MongoDataService:
             res = await col.insert_one(doc_to_insert)
             return res.inserted_id
         except DuplicateKeyError:
-            logger.warning("DuplicateKeyError on insert into %s. Attempting upsert by 'id'", collection)
+            logger.warning(
+                "DuplicateKeyError on insert into %s. Attempting upsert by 'id'", collection)
             # If a duplicate _id was inserted concurrently, try an upsert using
             # the provided 'id' field to merge/replace the document instead.
             try:
@@ -64,7 +65,8 @@ class MongoDataService:
                     if existing and "_id" in existing:
                         return existing["_id"]
             except Exception as e:
-                logger.exception("Failed to resolve DuplicateKeyError by upsert: %s", e)
+                logger.exception(
+                    "Failed to resolve DuplicateKeyError by upsert: %s", e)
             # If we couldn't resolve, re-raise the original duplicate key error
             raise
 
@@ -91,27 +93,24 @@ class MongoDataService:
     async def save_user(self, user_id: str, user_data: Dict):
         await self.replace_one("users", {"id": user_id}, user_data)
 
-    async def delete_user(self, user_id: str) -> bool:
-        await self.delete_one("users", {"id": user_id})
-        return True
-
     # Expenses
+
     async def expenses_db(self) -> List[Dict]:
         return await self.get_all("expenses")
 
     async def add_expense(self, expense_data: Dict):
         await self.insert_one("expenses", expense_data)
 
-
     # Budgets
+
     async def budgets_db(self) -> List[Dict]:
         return await self.get_all("budgets")
 
     async def add_budget(self, budget_data: Dict):
         await self.insert_one("budgets", budget_data)
 
-
     # Income
+
     async def income_db(self) -> List[Dict]:
         return await self.get_all("income")
 
@@ -215,7 +214,7 @@ class MongoDataServiceSyncWrapper:
 
     def add_expense(self, expense_data: Dict):
         return self._run(self._async.add_expense(expense_data))
-    
+
     @property
     def budgets_db(self) -> List[Dict]:
         return self._run(self._async.budgets_db())

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useBudgetStore } from "../../store/budgetStore";
 import { useExpenseStore } from "../../store/expenseStore";
 import { Target, TrendingUp, AlertTriangle, CheckCircle } from "lucide-react";
@@ -287,7 +287,8 @@ const Budget = () => {
 							<div className="space-y-4">
 								{budgets.map((budget) => {
 									const progress = getBudgetProgress(budget.id, expenses);
-									const percentage = Math.min((progress.spent / budget.amount) * 100, 100);
+									const percentage = (progress.spent / budget.amount) * 100;
+									const isOverBudget = percentage > 100;
 									const budgetMessage = getBudgetMessage(percentage, progress.spent, budget.amount);
 
 									return (
@@ -314,12 +315,25 @@ const Budget = () => {
 												</div>
 												<div className="flex items-center space-x-3">
 													<div className="text-right">
-														<p className="text-sm font-medium text-gray-900">
-															{formatCurrency(progress.spent)} / {formatCurrency(budget.amount)}
-														</p>
-														<p className="text-xs text-gray-500">
-															{percentage.toFixed(1)}% used
-														</p>
+														{isOverBudget ? (
+															<div>
+																<p className="text-sm font-medium text-red-600">
+																	Over by {formatCurrency(progress.spent - budget.amount)}
+																</p>
+																<p className="text-xs text-gray-500">
+																	{formatCurrency(progress.spent)} / {formatCurrency(budget.amount)}
+																</p>
+															</div>
+														) : (
+															<div>
+																<p className="text-sm font-medium text-gray-900">
+																	{formatCurrency(progress.spent)} / {formatCurrency(budget.amount)}
+																</p>
+																<p className="text-xs text-gray-500">
+																	{percentage.toFixed(1)}% used
+																</p>
+															</div>
+														)}
 													</div>
 													{/* <button
 														onClick={() => handleDelete(budget.id)}
@@ -332,11 +346,14 @@ const Budget = () => {
 											</div>
 
 											{/* Progress Bar */}
-											<div className="w-full bg-gray-200 rounded-full h-2">
+											<div className="w-full bg-gray-200 rounded-full h-2 relative overflow-hidden">
 												<div
 													className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(percentage)}`}
 													style={{ width: `${Math.min(percentage, 100)}%` }}
 												></div>
+												{isOverBudget && (
+													<div className="absolute inset-0 bg-red-500 opacity-20 animate-pulse"></div>
+												)}
 											</div>
 
 											{/* Budget Status Message */}
