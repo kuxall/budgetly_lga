@@ -1,6 +1,6 @@
 """Budgetly - AI-Powered Financial Management Platform."""
 
-from fastapi import FastAPI, HTTPException, Request, status, Depends, Header, Response
+from fastapi import FastAPI, HTTPException, Request, status, Depends
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -11,6 +11,7 @@ import secrets
 import re
 import bcrypt
 import json
+import base64
 
 # Load environment variables
 try:
@@ -22,6 +23,10 @@ except ImportError:
 # Import services
 from services.data_services import data_service
 from services.email_service import email_service
+from services.real_ocr_service import ocr_service
+from services.image_validation_service import image_validation_service
+from services.image_storage_service import persistent_storage
+from services.duplicate_detection_service import get_duplicate_detection_service
 
 app = FastAPI(
     title="Budgetly API",
@@ -815,3 +820,402 @@ async def get_budgets(current_user: Dict = Depends(get_current_user)):
 #     data_service.save_data()
 
 #     return {"message": "Budget deleted successfully"}
+
+
+# OCR Receipt Processing Endpoints
+
+@app.post("/api/v1/expenses/upload-receipt")
+async def upload_receipt(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Upload and process receipt with comprehensive validation"""
+
+    try:
+        # Parse multipart form data
+        form = await request.form()
+
+        # Get uploaded file
+        uploaded_file = form.get("file")
+        if not uploaded_file:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No file uploaded"
+            )
+
+        # Read file data
+        file_data = await uploaded_file.read()
+        filename = uploaded_file.filename or "unknown"
+
+        # STEP 1: Multi-layer file validation (BEFORE any storage)
+        validation_result = await image_validation_service.validate_file(
+            file_data, filename, current_user["id"]
+        )
+
+        if not validation_result["valid"]:
+            return {
+                "success": False,
+                "error": validation_result["error"],
+                "reason": validation_result["reason"]
+            }
+
+        # Use sanitized data from validation
+        sanitized_data = validation_result["sanitized_data"]
+
+        # STEP 2: Receipt authenticity validation (CRITICAL - BEFORE storage)
+        receipt_validation = await ocr_service.validate_receipt_before_storage(
+            sanitized_data, filename
+        )
+
+        if not receipt_validation["valid"]:
+            return {
+                "success": False,
+                "error": receipt_validation["error"],
+                "reason": receipt_validation["reason"],
+                "validation_stage": "receipt_authenticity"
+            }
+
+        # STEP 3: AI OCR processing (only for validated receipts)
+        extracted_data = await ocr_service.extract_receipt_data(sanitized_data, filename)
+
+        if not extracted_data.get("is_receipt", True):
+            return {
+                "success": False,
+                "error": "Invalid receipt content",
+                "reason": "AI analysis indicates this is not a valid receipt"
+            }
+
+        # STEP 4: Duplicate detection
+        duplicate_service = get_duplicate_detection_service(data_service)
+        duplicate_check = duplicate_service.check_duplicate_expense(
+            extracted_data, current_user["id"]
+        )
+
+        if duplicate_check["is_duplicate"]:
+            return {
+                "success": False,
+                "error": "Receipt already processed",
+                "is_duplicate": True,
+                "existing_expense": duplicate_check["existing_expense"],
+                "duplicate_confidence": duplicate_check["confidence"],
+                "message": duplicate_check["message"]
+            }
+
+        # STEP 5: Store receipt with persistent 24-hour token
+        image_token = persistent_storage.store_receipt(
+            sanitized_data, current_user["id"], filename, extracted_data
+        )
+
+        # STEP 6: Confidence-based expense creation
+        confidence = extracted_data.get("confidence", 0.0)
+        should_auto_create = (
+            confidence >= 0.8 and  # High confidence threshold
+            extracted_data.get("total_amount", 0) > 0 and
+            extracted_data.get("merchant", "").strip() != "" and
+            len(extracted_data.get("validation_warnings", [])) == 0
+        )
+
+        if should_auto_create:
+            # Auto-create expense
+            expense_id = secrets.token_urlsafe(16)
+            expense = {
+                "id": expense_id,
+                "user_id": current_user["id"],
+                "description": extracted_data.get("merchant", "Receipt Expense"),
+                "amount": extracted_data.get("total_amount", 0),
+                "category": extracted_data.get("category", "Other"),
+                "date": extracted_data.get("date", datetime.utcnow().date().isoformat()),
+                "payment_method": extracted_data.get("payment_method", "other"),
+                "notes": f"Auto-created from receipt (confidence: {confidence:.1%})",
+                "receipt_token": image_token,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat()
+            }
+
+            data_service.add_expense(expense)
+
+            # Link receipt to expense
+            persistent_storage.update_receipt_expense(
+                image_token, current_user["id"], expense_id
+            )
+
+            return {
+                "success": True,
+                "auto_created": True,
+                "expense": expense,
+                "confidence": confidence,
+                "confidence_level": extracted_data.get("confidence_level", "high"),
+                "confidence_explanation": extracted_data.get("confidence_explanation", ""),
+                "extracted_data": extracted_data,
+                "receipt_token": image_token,
+                "message": "Receipt processed and expense created automatically"
+            }
+        else:
+            # Require manual review
+            return {
+                "success": True,
+                "auto_created": False,
+                "requires_review": True,
+                "confidence": confidence,
+                "confidence_level": extracted_data.get("confidence_level", "medium"),
+                "confidence_explanation": extracted_data.get("confidence_explanation", ""),
+                "extracted_data": extracted_data,
+                "receipt_token": image_token,
+                "validation_warnings": extracted_data.get("validation_warnings", []),
+                "message": "Receipt processed but requires manual review before creating expense"
+            }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Receipt processing failed: {str(e)}"
+        )
+
+
+@app.post("/api/v1/expenses/create-from-receipt")
+async def create_expense_from_receipt(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Create expense from receipt data (manual review flow)"""
+
+    try:
+        data = await request.json()
+
+        # Validate required fields
+        validate_required_fields(data, ["receipt_token"])
+
+        receipt_token = data["receipt_token"]
+
+        # Get receipt data
+        receipt_data = persistent_storage.get_receipt(
+            receipt_token, current_user["id"])
+        if not receipt_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Receipt not found or expired"
+            )
+
+        # Use provided data or fall back to extracted data
+        extracted_data = receipt_data.get("extracted_data", {})
+
+        expense_data = {
+            "description": data.get("description") or extracted_data.get("merchant", "Receipt Expense"),
+            "amount": data.get("amount") or extracted_data.get("total_amount", 0),
+            "category": data.get("category") or extracted_data.get("category", "Other"),
+            "date": data.get("date") or extracted_data.get("date", datetime.utcnow().date().isoformat()),
+            "payment_method": data.get("payment_method") or extracted_data.get("payment_method", "other"),
+            "notes": data.get("notes", f"Created from receipt (manual review)")
+        }
+
+        # Validate expense data
+        validate_required_fields(expense_data, ["description", "amount"])
+
+        try:
+            amount = float(expense_data["amount"])
+            if amount <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Amount must be a positive number"
+            )
+
+        # Create expense
+        expense_id = secrets.token_urlsafe(16)
+        expense = {
+            "id": expense_id,
+            "user_id": current_user["id"],
+            "description": expense_data["description"],
+            "amount": amount,
+            "category": expense_data["category"],
+            "date": expense_data["date"],
+            "payment_method": expense_data["payment_method"],
+            "notes": expense_data["notes"],
+            "receipt_token": receipt_token,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        data_service.add_expense(expense)
+
+        # Link receipt to expense
+        persistent_storage.update_receipt_expense(
+            receipt_token, current_user["id"], expense_id
+        )
+
+        return {
+            "success": True,
+            "expense": expense,
+            "message": "Expense created successfully from receipt"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create expense from receipt: {str(e)}"
+        )
+
+
+@app.get("/api/v1/receipts/list")
+async def list_user_receipts(current_user: Dict = Depends(get_current_user)):
+    """List all user receipts with expense status"""
+
+    try:
+        receipts = persistent_storage.list_user_receipts(current_user["id"])
+
+        # Enhance receipt data with expense information
+        enhanced_receipts = []
+        for receipt in receipts:
+            enhanced_receipt = {
+                "token": receipt["token"],
+                "filename": receipt["filename"],
+                "created_at": receipt["created_at"],
+                "expires_at": receipt["expires_at"],
+                "processing_status": receipt.get("processing_status", "stored"),
+                "expense_id": receipt.get("expense_id"),
+                "accessed_count": receipt.get("accessed_count", 0),
+                "extracted_data": {
+                    "merchant": receipt.get("extracted_data", {}).get("merchant", ""),
+                    "amount": receipt.get("extracted_data", {}).get("total_amount", 0),
+                    "date": receipt.get("extracted_data", {}).get("date", ""),
+                    "category": receipt.get("extracted_data", {}).get("category", ""),
+                    "confidence": receipt.get("extracted_data", {}).get("confidence", 0)
+                }
+            }
+            enhanced_receipts.append(enhanced_receipt)
+
+        return {
+            "success": True,
+            "receipts": enhanced_receipts,
+            "total_count": len(enhanced_receipts)
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list receipts: {str(e)}"
+        )
+
+
+@app.get("/api/v1/receipts/image/{token}")
+async def get_receipt_image(token: str, current_user: Dict = Depends(get_current_user)):
+    """Secure receipt image retrieval with persistent storage"""
+
+    try:
+        receipt_data = persistent_storage.get_receipt(
+            token, current_user["id"])
+
+        if not receipt_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Receipt not found or expired"
+            )
+
+        # Return image data as base64
+        image_data = receipt_data["image_data"]
+        filename = receipt_data["filename"]
+
+        # Determine content type based on original file
+        if filename.lower().endswith('.pdf'):
+            content_type = "application/pdf"
+        else:
+            content_type = "image/jpeg"  # Images are sanitized to JPEG
+
+        return {
+            "success": True,
+            "image_data": base64.b64encode(image_data).decode() if isinstance(image_data, bytes) else image_data,
+            "filename": filename,
+            "content_type": content_type,
+            "extracted_data": receipt_data.get("extracted_data", {}),
+            "processing_status": receipt_data.get("processing_status", "stored")
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve receipt image: {str(e)}"
+        )
+
+
+@app.delete("/api/v1/receipts/image/{token}")
+async def delete_receipt_image(token: str, current_user: Dict = Depends(get_current_user)):
+    """Delete receipt and optionally associated expense"""
+
+    try:
+        # Get receipt data first to check for associated expense
+        receipt_data = persistent_storage.get_receipt(
+            token, current_user["id"])
+
+        if not receipt_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Receipt not found or expired"
+            )
+
+        # Delete receipt from storage
+        success = persistent_storage.delete_receipt(token, current_user["id"])
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete receipt"
+            )
+
+        # Note: We don't automatically delete the associated expense
+        # as users might want to keep the expense record
+
+        return {
+            "success": True,
+            "message": "Receipt deleted successfully",
+            "had_associated_expense": receipt_data.get("expense_id") is not None
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete receipt: {str(e)}"
+        )
+
+
+@app.get("/api/v1/receipts/stats")
+async def get_receipt_stats(current_user: Dict = Depends(get_current_user)):
+    """Get receipt processing statistics for the user"""
+
+    try:
+        # Get user receipts
+        receipts = persistent_storage.list_user_receipts(current_user["id"])
+
+        # Calculate statistics
+        total_receipts = len(receipts)
+        processed_receipts = len(
+            [r for r in receipts if r.get("processing_status") == "processed"])
+        pending_receipts = total_receipts - processed_receipts
+
+        # Confidence distribution
+        confidence_levels = {"high": 0, "medium": 0, "low": 0}
+        for receipt in receipts:
+            extracted_data = receipt.get("extracted_data", {})
+            level = extracted_data.get("confidence_level", "medium")
+            if level in confidence_levels:
+                confidence_levels[level] += 1
+
+        # Get storage stats
+        storage_stats = persistent_storage.get_storage_stats()
+
+        return {
+            "success": True,
+            "user_stats": {
+                "total_receipts": total_receipts,
+                "processed_receipts": processed_receipts,
+                "pending_receipts": pending_receipts,
+                "confidence_distribution": confidence_levels
+            },
+            "storage_stats": storage_stats
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get receipt stats: {str(e)}"
+        )

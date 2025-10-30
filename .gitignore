@@ -354,3 +354,6 @@ INSTALL_POPPLER.md
 # Additional Python cache (project specific)
 models/__pycache__/
 models/__init__.pyc
+
+
+receipts/

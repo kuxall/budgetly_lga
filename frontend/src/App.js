@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Income from "./pages/Income/Income";
 import Expenses from "./pages/Expenses/Expenses";
 import Budget from "./pages/Budget/Budget";
+import ReceiptsPage from "./pages/Receipts/ReceiptsPage";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
 
 
@@ -68,6 +69,7 @@ function App() {
           <Route path="/income" element={isAuthenticated ? <Income /> : <Navigate to="/login" />} />
           <Route path="/expenses" element={isAuthenticated ? <Expenses /> : <Navigate to="/login" />} />
           <Route path="/budget" element={isAuthenticated ? <Budget /> : <Navigate to="/login" />} />
+          <Route path="/receipts" element={isAuthenticated ? <ReceiptsPage /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </Router>
