@@ -79,14 +79,33 @@ export const useBudgetStore = create((set, get) => ({
 
 		if (budget.period === 'monthly') {
 			// Filter expenses for current month and matching category
-			spent = expenses
-				.filter(expense => {
-					const expenseDate = new Date(expense.date);
-					return expenseDate.getMonth() === currentMonth &&
-						expenseDate.getFullYear() === currentYear &&
-						expense.category === budget.category;
-				})
-				.reduce((total, expense) => total + expense.amount, 0);
+			const matchingExpenses = expenses.filter(expense => {
+				const expenseDate = new Date(expense.date);
+				const isCurrentMonth = expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
+				const isSameCategory = expense.category === budget.category;
+
+				// Debug logging
+				console.log('Budget Progress Debug:', {
+					budgetId,
+					budgetCategory: budget.category,
+					expenseCategory: expense.category,
+					expenseAmount: expense.amount,
+					expenseDate: expense.date,
+					isCurrentMonth,
+					isSameCategory,
+					matches: isCurrentMonth && isSameCategory
+				});
+
+				return isCurrentMonth && isSameCategory;
+			});
+
+			spent = matchingExpenses.reduce((total, expense) => total + expense.amount, 0);
+
+			console.log('Total spent for budget:', {
+				budgetCategory: budget.category,
+				totalSpent: spent,
+				matchingExpensesCount: matchingExpenses.length
+			});
 		} else if (budget.period === 'weekly') {
 			// Filter expenses for current week and matching category
 			const startOfWeek = new Date(currentDate);
@@ -112,13 +131,15 @@ export const useBudgetStore = create((set, get) => ({
 				.reduce((total, expense) => total + expense.amount, 0);
 		}
 
-		const remaining = Math.max(budget.amount - spent, 0);
+		const remaining = budget.amount - spent;
 		const percentage = (spent / budget.amount) * 100;
 
 		return {
 			spent,
 			remaining,
-			percentage: Math.min(percentage, 100)
+			percentage,
+			isOverBudget: spent > budget.amount,
+			overspent: Math.max(spent - budget.amount, 0)
 		};
 	},
 
