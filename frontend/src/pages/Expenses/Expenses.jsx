@@ -2,6 +2,16 @@ import React, { useState, useEffect } from "react";
 import { useExpenseStore } from "../../store/expenseStore";
 import { Trash2, Calendar, DollarSign, Camera, Sparkles } from "lucide-react";
 import { useGlobalToast } from "../../contexts/ToastContext";
+import { useBudgetStore } from "../../store/budgetStore";
+import {
+	Calendar,
+	DollarSign,
+	Sparkles,
+	Upload,
+	Receipt,
+} from "lucide-react";
+import MainLayout from "../../components/layout/MainLayout";
+import ReceiptUpload from "../../components/ui/ReceiptUpload";
 
 const Expenses = () => {
 	const {
@@ -23,10 +33,21 @@ const Expenses = () => {
 
 	const [isGettingSuggestion, setIsGettingSuggestion] = useState(false);
 	const { success, error } = useGlobalToast();
+	const [showReceiptUpload, setShowReceiptUpload] = useState(false);
 
 	useEffect(() => {
 		fetchExpenses();
 	}, [fetchExpenses]);
+
+	const handleExpenseCreated = (expense) => {
+		// Refresh expenses list when a new expense is created from receipt
+		fetchExpenses();
+	};
+
+	const handleReceiptProcessed = (result) => {
+		// Could show a success message or update UI
+		console.log('Receipt processed:', result);
+	};
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
@@ -236,6 +257,147 @@ const Expenses = () => {
 									{isGettingSuggestion && (
 										<Sparkles className="h-4 w-4 text-blue-500 animate-pulse" />
 									)}
+				{/* Receipt Upload Section */}
+				<div className="bg-white shadow rounded-lg">
+					<div className="px-4 py-5 sm:p-6">
+						<div className="flex items-center justify-between mb-4">
+							<div>
+								<h4 className="text-lg font-medium text-gray-900">
+									Upload Receipt
+								</h4>
+								<p className="text-sm text-gray-500 mt-1">
+									Let AI extract expense data from your receipts automatically
+								</p>
+							</div>
+							<button
+								onClick={() => setShowReceiptUpload(true)}
+								className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+							>
+								<Upload className="h-4 w-4 mr-2" />
+								Upload Receipt
+							</button>
+						</div>
+
+						<div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+							<div className="flex items-start">
+								<Receipt className="h-5 w-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+								<div>
+									<h5 className="text-sm font-medium text-blue-800">AI-Powered Processing</h5>
+									<p className="text-sm text-blue-700 mt-1">
+										Upload receipt images and our AI will automatically extract merchant, amount, date, and category.
+										High-confidence results create expenses automatically, others require quick review.
+									</p>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				{/* Manual Expense Form */}
+				<div className="bg-white shadow rounded-lg">
+					<div className="px-4 py-5 sm:p-6">
+						<h4 className="text-lg font-medium text-gray-900 mb-4">
+							Add Expense Manually
+						</h4>
+						<form onSubmit={handleSubmit}>
+							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+								<div>
+									<label className="block text-sm font-medium text-gray-700">
+										Description *
+									</label>
+									<input
+										type="text"
+										name="description"
+										value={formData.description}
+										onChange={handleChange}
+										className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+										placeholder="Enter expense description"
+										required
+									/>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700">
+										Amount *
+									</label>
+									<input
+										type="number"
+										name="amount"
+										value={formData.amount}
+										onChange={handleChange}
+										step="0.01"
+										min="0"
+										className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+										placeholder="0.00"
+										required
+									/>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700">
+										<div className="flex items-center space-x-2">
+											<span>Category</span>
+											{isGettingSuggestion && (
+												<Sparkles className="h-4 w-4 text-blue-500 animate-pulse" />
+											)}
+										</div>
+									</label>
+									<select
+										name="category"
+										value={formData.category}
+										onChange={handleChange}
+										className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+									>
+										<option value="Food & Dining">Food & Dining</option>
+										<option value="Transportation">Transportation</option>
+										<option value="Shopping">Shopping</option>
+										<option value="Entertainment">Entertainment</option>
+										<option value="Utilities">Utilities</option>
+										<option value="Healthcare">Healthcare</option>
+										<option value="Education">Education</option>
+										<option value="Other">Other</option>
+									</select>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700">
+										Date
+									</label>
+									<input
+										type="date"
+										name="date"
+										value={formData.date}
+										onChange={handleChange}
+										className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+									/>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700">
+										Payment Method
+									</label>
+									<select
+										name="payment_method"
+										value={formData.payment_method}
+										onChange={handleChange}
+										className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+									>
+										<option value="credit_card">Credit Card</option>
+										<option value="debit_card">Debit Card</option>
+										<option value="cash">Cash</option>
+										<option value="bank_transfer">Bank Transfer</option>
+										<option value="digital_wallet">Digital Wallet</option>
+										<option value="other">Other</option>
+									</select>
+								</div>
+								<div>
+									<label className="block text-sm font-medium text-gray-700">
+										Notes
+									</label>
+									<input
+										type="text"
+										name="notes"
+										value={formData.notes}
+										onChange={handleChange}
+										className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+										placeholder="Optional notes"
+									/>
 								</div>
 							</label>
 							<select
@@ -375,6 +537,15 @@ const Expenses = () => {
 							</div>
 						))}
 					</div>
+				</div>
+
+				{/* Receipt Upload Modal */}
+				{showReceiptUpload && (
+					<ReceiptUpload
+						onClose={() => setShowReceiptUpload(false)}
+						onExpenseCreated={handleExpenseCreated}
+						onReceiptProcessed={handleReceiptProcessed}
+					/>
 				)}
 			</div>
 
