@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useIncomeStore } from "../../store/incomeStore";
-import { DollarSign, Calendar } from "lucide-react";
+import { Trash2, DollarSign, Calendar } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 
 const Income = () => {
@@ -10,6 +10,7 @@ const Income = () => {
 		isSubmitting,
 		fetchIncome,
 		createIncome,
+		deleteIncome,
 		getTotalIncome,
 	} = useIncomeStore();
 
@@ -57,7 +58,15 @@ const Income = () => {
 		});
 	};
 
-	// Delete functionality disabled for now - focusing on creation and tracking
+	const handleDelete = async (id) => {
+		if (window.confirm("Are you sure you want to delete this income record?")) {
+			try {
+				await deleteIncome(id);
+			} catch (error) {
+				console.error("Failed to delete income:", error);
+			}
+		}
+	};
 
 	const formatCurrency = (amount) => {
 		return new Intl.NumberFormat("en-CA", {
@@ -219,13 +228,13 @@ const Income = () => {
 												<span className="text-lg font-semibold text-green-600">
 													+{formatCurrency(incomeItem.amount)}
 												</span>
-												{/* <button
+												<button
 													onClick={() => handleDelete(incomeItem.id)}
 													className="text-red-600 hover:text-red-800 p-1"
 													title="Delete income"
 												>
 													<Trash2 className="h-4 w-4" />
-												</button> */}
+												</button>
 											</div>
 										</div>
 									</div>

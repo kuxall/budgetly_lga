@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useExpenseStore } from "../../store/expenseStore";
-import { useBudgetStore } from "../../store/budgetStore";
+import { categoriesApi } from "../../services/api";
 import {
+	Trash2,
 	Calendar,
 	DollarSign,
+	Camera,
 	Sparkles,
 } from "lucide-react";
+import ReceiptUpload from "../../components/ui/ReceiptUpload";
 import MainLayout from "../../components/layout/MainLayout";
 
 const Expenses = () => {
@@ -15,9 +18,8 @@ const Expenses = () => {
 		isSubmitting,
 		fetchExpenses,
 		createExpense,
+		deleteExpense,
 	} = useExpenseStore();
-
-	const { budgets, fetchBudgets } = useBudgetStore();
 
 	const [formData, setFormData] = useState({
 		description: "",
@@ -28,12 +30,12 @@ const Expenses = () => {
 		notes: "",
 	});
 
+	const [showReceiptUpload, setShowReceiptUpload] = useState(false);
 	const [isGettingSuggestion, setIsGettingSuggestion] = useState(false);
 
 	useEffect(() => {
 		fetchExpenses();
-		fetchBudgets();
-	}, [fetchExpenses, fetchBudgets]);
+	}, [fetchExpenses]);
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
@@ -47,7 +49,7 @@ const Expenses = () => {
 			await createExpense({
 				...formData,
 				amount: parseFloat(formData.amount),
-			}, budgets);
+			});
 
 			// Reset form
 			setFormData({
@@ -71,40 +73,24 @@ const Expenses = () => {
 		});
 
 		// Auto-suggest category when description changes
-		if (name === "description" && value.length > 3) {
-			await getSuggestion(value);
+		if (name === "description" && value.length > 3 && formData.amount) {
+			await getSuggestion(value, formData.amount);
 		}
 	};
 
-	const getSuggestion = async (description) => {
+	const getSuggestion = async (description, amount) => {
 		if (isGettingSuggestion) return;
 
 		setIsGettingSuggestion(true);
 		try {
-			// Simple category suggestion based on keywords
-			const keywords = {
-				"Food & Dining": ["food", "restaurant", "coffee", "lunch", "dinner", "grocery"],
-				"Transportation": ["gas", "fuel", "uber", "taxi", "bus", "train"],
-				"Shopping": ["store", "mall", "amazon", "clothes", "shopping"],
-				"Entertainment": ["movie", "game", "concert", "netflix", "spotify"],
-				"Utilities": ["electric", "water", "internet", "phone", "bill"],
-				"Healthcare": ["doctor", "pharmacy", "hospital", "medicine"],
-			};
-
-			const lowerDesc = description.toLowerCase();
-			let suggestedCategory = "Other";
-
-			for (const [category, words] of Object.entries(keywords)) {
-				if (words.some(word => lowerDesc.includes(word))) {
-					suggestedCategory = category;
-					break;
-				}
-			}
-
-			if (suggestedCategory !== "Other") {
+			const suggestion = await categoriesApi.suggestCategory(
+				description,
+				amount
+			);
+			if (suggestion.category && suggestion.confidence > 0.7) {
 				setFormData((prev) => ({
 					...prev,
-					category: suggestedCategory,
+					category: suggestion.category,
 				}));
 			}
 		} catch (error) {
@@ -114,7 +100,112 @@ const Expenses = () => {
 		}
 	};
 
-	// Delete functionality disabled for now - focusing on creation and tracking
+	const handleDelete = async (id) => {
+		if (window.confirm("Are you sure you want to delete this expense?")) {
+			try {
+				await deleteExpense(id);
+			} catch (error) {
+				console.error("Failed to delete expense:", error);
+			}
+		}
+	};
+
+	const formatCurrency = (amount) => {
+		return new Intl.NumberFormat("en-CA", {
+			style: "currency",
+			currency: "CAD",
+		}).format(amount);
+	};
+
+	const formatDate = (dateString) => {
+		return new Date(dateString).toLocaleDateString();
+	};
+
+	const formatExpenseDescription = (expense) => {
+		const { description, category, merchant } = expense;
+
+		// Debug logging to see what data we have
+		console.log("Expense data:", { description, category, merchant, expense });
+
+		// If we have a merchant field and description is generic, create a better description
+		if (
+			merchant &&
+			merchant !== description &&
+			!merchant.includes("STORE") &&
+			!merchant.match(/^\d+$/)
+		) {
+			switch (category.toLowerCase()) {
+				case "food & dining":
+					return `Purchase at ${merchant}`;
+				case "transportation":
+					if (merchant.toLowerCase().includes("uber")) {
+						return "Uber ride";
+					} else if (merchant.toLowerCase().includes("lyft")) {
+						return "Lyft ride";
+					} else {
+						return `Transportation via ${merchant}`;
+					}
+				case "shopping":
+					return `Shopping at ${merchant}`;
+				default:
+					return `Purchase at ${merchant}`;
+			}
+		}
+
+		// Handle AI-generated descriptions
+		if (
+			description &&
+			(description.includes(" items at ") || description.includes(" item at "))
+		) {
+			const parts = description.split(" at ");
+			if (parts.length === 2) {
+				const store = parts[1].trim();
+				const lowerStore = store.toLowerCase();
+
+				// Handle specific services first
+				if (lowerStore.includes("uber")) {
+					return lowerStore.includes("eats")
+						? "Food delivery from Uber Eats"
+						: "Uber ride";
+				} else if (lowerStore.includes("lyft")) {
+					return "Lyft ride";
+				}
+
+				// Handle generic store IDs
+				if (store.includes("STORE") || store.match(/^\d+$/)) {
+					switch (category?.toLowerCase()) {
+						case "food & dining":
+							return "Grocery shopping";
+						case "transportation":
+							return "Transportation expense";
+						case "shopping":
+							return "Shopping purchase";
+						default:
+							return "Purchase";
+					}
+				}
+
+				// Use actual store name
+				const actualStore =
+					merchant && !merchant.includes("STORE") && !merchant.match(/^\d+$/)
+						? merchant
+						: store;
+
+				switch (category?.toLowerCase()) {
+					case "food & dining":
+						return `Grocery shopping at ${actualStore}`;
+					case "transportation":
+						return `Transportation via ${actualStore}`;
+					case "shopping":
+						return `Shopping at ${actualStore}`;
+					default:
+						return `Purchase at ${actualStore}`;
+				}
+			}
+		}
+
+		return description || "Expense";
+	};
 
 	return (
 		<MainLayout>
@@ -131,9 +222,18 @@ const Expenses = () => {
 				{/* Add New Expense Form */}
 				<div className="bg-white shadow rounded-lg">
 					<div className="px-4 py-5 sm:p-6">
-						<h4 className="text-lg font-medium text-gray-900 mb-4">
-							Add New Expense
-						</h4>
+						<div className="flex items-center justify-between mb-4">
+							<h4 className="text-lg font-medium text-gray-900">
+								Add New Expense
+							</h4>
+							<button
+								onClick={() => setShowReceiptUpload(true)}
+								className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+							>
+								<Camera className="h-4 w-4" />
+								<span>Scan Receipt</span>
+							</button>
+						</div>
 						<form onSubmit={handleSubmit}>
 							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 								<div>
@@ -248,7 +348,7 @@ const Expenses = () => {
 					</div>
 				</div>
 
-				{/* Expense History */}
+				{/* Expenses List */}
 				<div className="bg-white shadow rounded-lg">
 					<div className="px-4 py-5 sm:p-6">
 						<h4 className="text-lg font-medium text-gray-900 mb-4">
@@ -275,19 +375,23 @@ const Expenses = () => {
 											<div className="flex-1">
 												<div className="flex items-center space-x-3">
 													<div className="flex-shrink-0">
-														<DollarSign className="h-5 w-5 text-red-500" />
+														<DollarSign className="h-5 w-5 text-green-500" />
 													</div>
 													<div>
 														<h5 className="text-sm font-medium text-gray-900">
-															{expense.description}
+															{formatExpenseDescription(expense)}
 														</h5>
 														<div className="flex items-center space-x-4 text-xs text-gray-500">
-															<span>{expense.category}</span>
 															<span className="flex items-center">
 																<Calendar className="h-3 w-3 mr-1" />
-																{new Date(expense.date).toLocaleDateString()}
+																{formatDate(expense.date)}
 															</span>
-															<span className="capitalize">{expense.payment_method?.replace('_', ' ')}</span>
+															<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+																{expense.category}
+															</span>
+															<span className="capitalize">
+																{expense.payment_method?.replace("_", " ")}
+															</span>
 														</div>
 														{expense.notes && (
 															<p className="text-xs text-gray-600 mt-1">
@@ -298,16 +402,16 @@ const Expenses = () => {
 												</div>
 											</div>
 											<div className="flex items-center space-x-3">
-												<span className="text-lg font-semibold text-red-600">
-													-${expense.amount.toFixed(2)}
+												<span className="text-lg font-semibold text-gray-900">
+													{formatCurrency(expense.amount)}
 												</span>
-												{/* <button
+												<button
 													onClick={() => handleDelete(expense.id)}
 													className="text-red-600 hover:text-red-800 p-1"
 													title="Delete expense"
 												>
 													<Trash2 className="h-4 w-4" />
-												</button> */}
+												</button>
 											</div>
 										</div>
 									</div>
@@ -316,6 +420,17 @@ const Expenses = () => {
 						)}
 					</div>
 				</div>
+
+				{/* Receipt Upload Modal */}
+				{showReceiptUpload && (
+					<ReceiptUpload
+						onClose={() => setShowReceiptUpload(false)}
+						onExpenseCreated={() => {
+							setShowReceiptUpload(false);
+							fetchExpenses(); // Refresh the list
+						}}
+					/>
+				)}
 			</div>
 		</MainLayout>
 	);
