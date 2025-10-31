@@ -1,17 +1,15 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
 	TrendingUp,
 	TrendingDown,
 	Target,
-	CreditCard,
 	Plus,
 	DollarSign,
 	AlertTriangle,
 	ArrowUpRight,
 	ArrowDownRight,
-	CheckCircle
 } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
 import { useExpenseStore } from "../store/expenseStore";
