@@ -735,7 +735,7 @@ async def get_expense(expense_id: str, current_user: Dict = Depends(get_current_
 
     return expense
 
-  @app.put("/api/v1/expenses/{expense_id}")
+@app.put("/api/v1/expenses/{expense_id}")
 async def update_expense(expense_id: str, request: Request, current_user: Dict = Depends(get_current_user)):
     """Update expense."""
     data = await request.json()
