@@ -7,7 +7,7 @@ export const useIncomeStore = create((set, get) => ({
 	isLoading: false,
 	isSubmitting: false,
 
-	
+
 	// Fetch all income
 	fetchIncome: async () => {
 		set({ isLoading: true });
@@ -37,6 +37,28 @@ export const useIncomeStore = create((set, get) => ({
 		} catch (error) {
 			set({ isSubmitting: false });
 			toast.error(error.message || 'Failed to add income');
+			throw error;
+		}
+	},
+
+	// Update income
+	updateIncome: async (id, incomeData) => {
+		set({ isSubmitting: true });
+		try {
+			const updatedIncome = await incomeApi.updateIncome(id, incomeData);
+			const currentIncome = get().income;
+			const updatedIncomeList = currentIncome.map(inc =>
+				inc.id === id ? updatedIncome : inc
+			);
+			set({
+				income: updatedIncomeList,
+				isSubmitting: false
+			});
+			toast.success('Income updated successfully!');
+			return updatedIncome;
+		} catch (error) {
+			set({ isSubmitting: false });
+			toast.error(error.message || 'Failed to update income');
 			throw error;
 		}
 	},

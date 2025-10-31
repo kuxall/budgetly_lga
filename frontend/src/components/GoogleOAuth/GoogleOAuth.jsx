@@ -101,7 +101,7 @@ const GoogleOAuth = ({ onSuccess, onError, className = "" }) => {
 	};
 
 	return (
-		<div className={`google-oauth-container ${className}`}>
+		<div className={google-oauth-container ${className}}>
 			<button
 				onClick={handleGoogleLogin}
 				disabled={loading}

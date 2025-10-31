@@ -216,6 +216,15 @@ export const incomeApi = {
 		return handleResponse(response);
 	},
 
+	updateIncome: async (id, income) => {
+		const response = await fetch(`${API_BASE_URL}/income/${id}`, {
+			method: 'PUT',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(income),
+		});
+		return handleResponse(response);
+	},
+
 	deleteIncome: async (incomeId) => {
 		const response = await fetch(`${API_BASE_URL}/income/${incomeId}`, {
 			method: 'DELETE',

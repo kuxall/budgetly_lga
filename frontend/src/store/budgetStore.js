@@ -39,19 +39,42 @@ export const useBudgetStore = create((set, get) => ({
 		}
 	},
 
-	// deleteBudget: async (budgetId) => {
-	// 	try {
-	// 		await budgetApi.deleteBudget(budgetId);
-	// 		const currentBudgets = get().budgets;
-	// 		set({
-	// 			budgets: currentBudgets.filter(budget => budget.id !== budgetId)
-	// 		});
-	// 		toast.success('Budget deleted successfully!');
-	// 	} catch (error) {
-	// 		toast.error(error.message || 'Failed to delete budget');
-	// 		throw error;
-	// 	}
-	// },
+	// Update budget
+	updateBudget: async (budgetId, budgetData) => {
+		set({ isSubmitting: true });
+		try {
+			const updatedBudget = await budgetApi.updateBudget(budgetId, budgetData);
+			const currentBudgets = get().budgets;
+			const updatedBudgets = currentBudgets.map(budget =>
+				budget.id === budgetId ? updatedBudget : budget
+			);
+			set({
+				budgets: updatedBudgets,
+				isSubmitting: false
+			});
+			toast.success('Budget updated successfully!');
+			return updatedBudget;
+		} catch (error) {
+			set({ isSubmitting: false });
+			toast.error(error.message || 'Failed to update budget');
+			throw error;
+		}
+	},
+
+	// Delete budget
+	deleteBudget: async (budgetId) => {
+		try {
+			await budgetApi.deleteBudget(budgetId);
+			const currentBudgets = get().budgets;
+			set({
+				budgets: currentBudgets.filter(budget => budget.id !== budgetId)
+			});
+			toast.success('Budget deleted successfully!');
+		} catch (error) {
+			toast.error(error.message || 'Failed to delete budget');
+			throw error;
+		}
+	},
 
 	// Get total budget
 	getTotalBudget: () => {

@@ -651,31 +651,91 @@ async def create_income(request: Request, current_user: Dict = Depends(get_curre
 @app.get("/api/v1/income")
 async def get_income(current_user: Dict = Depends(get_current_user)):
     """Get user income records."""
-    user_income = [inc for inc in data_service.income_db if inc["user_id"]
-                   == current_user["id"]]
+    user_income = data_service.get_income_by_user(current_user["id"])
     return user_income
 
 
-# @app.delete("/api/v1/income/{income_id}")
-# async def delete_income(income_id: str, current_user: Dict = Depends(get_current_user)):
-#     """Delete income record."""
-#     # Find income
-#     income = None
-#     for inc in data_service.income_db:
-#         if inc["id"] == income_id and inc["user_id"] == current_user["id"]:
-#             income = inc
-#             break
+@app.get("/api/v1/income/{income_id}")
+async def get_income_by_id(income_id: str, current_user: Dict = Depends(get_current_user)):
+    """Get specific income record."""
+    income = data_service.get_income(income_id)
 
-#     if not income:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="Income record not found"
-#         )
+    if not income or income["user_id"] != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Income record not found"
+        )
 
-#     data_service.income_db.remove(income)
-#     data_service.save_data()
+    return income
 
-#     return {"message": "Income record deleted successfully"}
+
+@app.put("/api/v1/income/{income_id}")
+async def update_income(income_id: str, request: Request, current_user: Dict = Depends(get_current_user)):
+    """Update income record."""
+    data = await request.json()
+
+    # Check if income exists and belongs to user
+    income = data_service.get_income(income_id)
+    if not income or income["user_id"] != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Income record not found"
+        )
+
+    # Validate amount if provided
+    if "amount" in data:
+        try:
+            amount = float(data["amount"])
+            if amount <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Amount must be a positive number"
+            )
+
+    # Update allowed fields
+    updatable_fields = ["source", "amount", "date", "description"]
+    updated_income = income.copy()
+
+    for field in updatable_fields:
+        if field in data:
+            if field == "amount":
+                updated_income[field] = float(data[field])
+            else:
+                updated_income[field] = data[field]
+
+    updated_income["updated_at"] = datetime.utcnow().isoformat()
+
+    success = data_service.update_income(income_id, updated_income)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update income record"
+        )
+
+    return updated_income
+
+
+@app.delete("/api/v1/income/{income_id}")
+async def delete_income(income_id: str, current_user: Dict = Depends(get_current_user)):
+    """Delete income record."""
+    # Check if income exists and belongs to user
+    income = data_service.get_income(income_id)
+    if not income or income["user_id"] != current_user["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Income record not found"
+        )
+
+    success = data_service.delete_income(income_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete income record"
+        )
+
+    return {"message": "Income record deleted successfully"}
 
 
 # Expense endpoints
@@ -719,89 +779,90 @@ async def create_expense(request: Request, current_user: Dict = Depends(get_curr
 @app.get("/api/v1/expenses")
 async def get_expenses(current_user: Dict = Depends(get_current_user)):
     """Get user expense records."""
-    user_expenses = [exp for exp in data_service.expenses_db if exp["user_id"]
-                     == current_user["id"]]
+    user_expenses = data_service.get_expenses_by_user(current_user["id"])
     return user_expenses
+
 
 @app.get("/api/v1/expenses/{expense_id}")
 async def get_expense(expense_id: str, current_user: Dict = Depends(get_current_user)):
     """Get specific expense."""
-    expense = None
-    for exp in data_service.expenses_db:
-        if exp["id"] == expense_id and exp["user_id"] == current_user["id"]:
-            expense = exp
-            break
+    expense = data_service.get_expense(expense_id)
 
-    if not expense:
+    if not expense or expense["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Expense not found"
         )
 
     return expense
+
 
 @app.put("/api/v1/expenses/{expense_id}")
 async def update_expense(expense_id: str, request: Request, current_user: Dict = Depends(get_current_user)):
     """Update expense."""
     data = await request.json()
 
-    # Find expense
-    expense = None
-    expense_index = None
-    for i, exp in enumerate(data_service.expenses_db):
-        if exp["id"] == expense_id and exp["user_id"] == current_user["id"]:
-            expense = exp
-            expense_index = i
-            break
-
-    if not expense:
+    # Check if expense exists and belongs to user
+    expense = data_service.get_expense(expense_id)
+    if not expense or expense["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Expense not found"
         )
-      
-          # Update fields
+
+    # Validate amount if provided
+    if "amount" in data:
+        try:
+            amount = float(data["amount"])
+            if amount <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Amount must be a positive number"
+            )
+
+    # Update allowed fields
     updatable_fields = ["amount", "description",
-                        "category", "date", "payment_method", "notes", "tags"]
+                        "category", "date", "payment_method", "notes"]
+    updated_expense = expense.copy()
+
     for field in updatable_fields:
         if field in data:
             if field == "amount":
-                try:
-                    amount = float(data[field])
-                    if amount <= 0:
-                        raise ValueError()
-                    expense[field] = amount
-                except (ValueError, TypeError):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Amount must be a positive number"
-                    )
+                updated_expense[field] = float(data[field])
             else:
-                expense[field] = data[field]
+                updated_expense[field] = data[field]
 
-    expense["updated_at"] = datetime.utcnow().isoformat()
-    data_service.update_expense(expense_id, expense)
+    updated_expense["updated_at"] = datetime.utcnow().isoformat()
 
-    return expense
+    success = data_service.update_expense(expense_id, updated_expense)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update expense"
+        )
+
+    return updated_expense
+
 
 @app.delete("/api/v1/expenses/{expense_id}")
 async def delete_expense(expense_id: str, current_user: Dict = Depends(get_current_user)):
     """Delete expense record."""
-    # Find expense
-    expense = None
-    for exp in data_service.expenses_db:
-        if exp["id"] == expense_id and exp["user_id"] == current_user["id"]:
-            expense = exp
-            break
-
-    if not expense:
+    # Check if expense exists and belongs to user
+    expense = data_service.get_expense(expense_id)
+    if not expense or expense["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Expense record not found"
         )
 
-    data_service.expenses_db.remove(expense)
-    data_service.save_data()
+    success = data_service.delete_expense(expense_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete expense record"
+        )
 
     return {"message": "Expense record deleted successfully"}
 
@@ -827,10 +888,10 @@ async def create_budget(request: Request, current_user: Dict = Depends(get_curre
         )
 
     # Check if budget already exists for this category and period
+    user_budgets = data_service.get_budgets_by_user(current_user["id"])
     existing_budget = None
-    for budget in data_service.budgets_db:
-        if (budget["user_id"] == current_user["id"] and
-            budget["category"] == data["category"] and
+    for budget in user_budgets:
+        if (budget["category"] == data["category"] and
                 budget["period"] == data.get("period", "monthly")):
             existing_budget = budget
             break
@@ -860,8 +921,7 @@ async def create_budget(request: Request, current_user: Dict = Depends(get_curre
 @app.get("/api/v1/budgets")
 async def get_budgets(current_user: Dict = Depends(get_current_user)):
     """Get user budgets."""
-    user_budgets = [budget for budget in data_service.budgets_db if budget["user_id"]
-                    == current_user["id"]]
+    user_budgets = data_service.get_budgets_by_user(current_user["id"])
     return user_budgets
 
 
@@ -1182,7 +1242,7 @@ async def update_budget(budget_id: str, request: Request, current_user: Dict = D
     updated_budget = user_budget.copy()
 
     # Update allowed fields
-    allowed_fields = ["category", "amount", "period", "is_active"]
+    allowed_fields = ["category", "amount", "period", "description"]
     for field in allowed_fields:
         if field in data:
             if field == "amount":
@@ -1193,7 +1253,8 @@ async def update_budget(budget_id: str, request: Request, current_user: Dict = D
     updated_budget["updated_at"] = datetime.utcnow().isoformat()
 
     # Update in data service
-    if not data_service.update_budget(budget_id, updated_budget):
+    success = data_service.update_budget(budget_id, updated_budget)
+    if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update budget"
@@ -1205,14 +1266,9 @@ async def update_budget(budget_id: str, request: Request, current_user: Dict = D
 @app.delete("/api/v1/budgets/{budget_id}")
 async def delete_budget(budget_id: str, current_user: Dict = Depends(get_current_user)):
     """Delete a budget."""
-    # Find the budget that belongs to the user
-    user_budget = None
-    for budget in data_service.budgets_db:
-        if budget["id"] == budget_id and budget["user_id"] == current_user["id"]:
-            user_budget = budget
-            break
-
-    if not user_budget:
+    # Check if budget exists and belongs to user
+    user_budget = data_service.get_budget(budget_id)
+    if not user_budget or user_budget["user_id"] != current_user["id"]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Budget not found"
@@ -1228,29 +1284,65 @@ async def delete_budget(budget_id: str, current_user: Dict = Depends(get_current
     return {"message": "Budget deleted successfully"}
 
 
-@app.delete("/api/v1/budgets/{budget_id}")
-async def delete_budget(budget_id: str, current_user: Dict = Depends(get_current_user)):
-    """Delete budget."""
-    # Find budget
-    budget = None
-    for b in data_service.budgets_db:
-        if b["id"] == budget_id and b["user_id"] == current_user["id"]:
-            budget = b
-            break
+# Categories API endpoint for AI suggestions
+@app.post("/api/v1/categories/suggest")
+async def suggest_category(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Suggest expense category based on description and amount."""
+    data = await request.json()
 
-    if not budget:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Budget not found"
-        )
+    validate_required_fields(data, ["description", "amount"])
 
-    data_service.budgets_db.remove(budget)
-    data_service.save_data()
+    description = data["description"].lower().strip()
+    amount = float(data["amount"])
 
-    return {"message": "Budget deleted successfully"}
+    # Simple rule-based category suggestion
+    # In production, you could use ML/AI for better suggestions
+    category_suggestions = {
+        "food": ["Food & Dining", 0.9],
+        "restaurant": ["Food & Dining", 0.9],
+        "grocery": ["Food & Dining", 0.8],
+        "uber": ["Transportation", 0.9],
+        "lyft": ["Transportation", 0.9],
+        "gas": ["Transportation", 0.8],
+        "fuel": ["Transportation", 0.8],
+        "amazon": ["Shopping", 0.8],
+        "walmart": ["Shopping", 0.8],
+        "target": ["Shopping", 0.8],
+        "netflix": ["Entertainment", 0.9],
+        "spotify": ["Entertainment", 0.9],
+        "movie": ["Entertainment", 0.8],
+        "electric": ["Utilities", 0.9],
+        "water": ["Utilities", 0.9],
+        "internet": ["Utilities", 0.8],
+        "phone": ["Utilities", 0.8],
+        "doctor": ["Healthcare", 0.9],
+        "pharmacy": ["Healthcare", 0.8],
+        "hospital": ["Healthcare", 0.9],
+    }
 
+    # Find best match
+    best_category = "Other"
+    best_confidence = 0.5
+
+    for keyword, (category, confidence) in category_suggestions.items():
+        if keyword in description:
+            if confidence > best_confidence:
+                best_category = category
+                best_confidence = confidence
+
+    # Adjust confidence based on amount (very high or very low amounts might be less reliable)
+    if amount > 1000 or amount < 1:
+        best_confidence *= 0.8
+
+    return {
+        "category": best_category,
+        "confidence": best_confidence,
+        "description": description,
+        "amount": amount
+    }
 
 # OCR Receipt Processing Endpoints
+
 
 @app.post("/api/v1/expenses/upload-receipt")
 async def upload_receipt(request: Request, current_user: Dict = Depends(get_current_user)):
