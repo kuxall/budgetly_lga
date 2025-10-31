@@ -12,6 +12,7 @@ const MainLayout = ({ children }) => {
 		{ name: "Income", href: "/income", icon: DollarSign },
 		{ name: "Expenses", href: "/expenses", icon: CreditCard },
 		{ name: "Budget", href: "/budget", icon: Target },
+		{ name: "Settings", href: "/settings", icon: Target },
 	];
 
 	const isActive = (path) => location.pathname === path;
