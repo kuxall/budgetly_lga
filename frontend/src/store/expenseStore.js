@@ -7,71 +7,31 @@ export const useExpenseStore = create((set, get) => ({
 	isLoading: false,
 	isSubmitting: false,
 
-	// Fetch expenses
+	// Fetch all expenses
 	fetchExpenses: async () => {
 		set({ isLoading: true });
 		try {
 			const expenses = await expenseApi.getExpenses();
 			set({ expenses, isLoading: false });
+			return expenses;
 		} catch (error) {
 			set({ isLoading: false });
 			toast.error(error.message || 'Failed to fetch expenses');
-			throw error;
+			return [];
 		}
 	},
 
 	// Create new expense
-	createExpense: async (expenseData, budgets = []) => {
+	createExpense: async (expenseData) => {
 		set({ isSubmitting: true });
 		try {
 			const newExpense = await expenseApi.createExpense(expenseData);
 			const currentExpenses = get().expenses;
-			const updatedExpenses = [newExpense, ...currentExpenses];
-
 			set({
-				expenses: updatedExpenses,
+				expenses: [newExpense, ...currentExpenses],
 				isSubmitting: false
 			});
-
-			// Check if this expense causes any budget to be exceeded
-			const relevantBudget = budgets.find(budget =>
-				budget.category === newExpense.category && budget.period === 'monthly'
-			);
-
-			if (relevantBudget) {
-				// Calculate total spent in this category for current month
-				const currentDate = new Date();
-				const currentMonth = currentDate.getMonth();
-				const currentYear = currentDate.getFullYear();
-
-				const monthlySpent = updatedExpenses
-					.filter(expense => {
-						const expenseDate = new Date(expense.date);
-						return expenseDate.getMonth() === currentMonth &&
-							expenseDate.getFullYear() === currentYear &&
-							expense.category === newExpense.category;
-					})
-					.reduce((total, expense) => total + expense.amount, 0);
-
-				const percentage = (monthlySpent / relevantBudget.amount) * 100;
-
-				if (percentage >= 100) {
-					const overspent = monthlySpent - relevantBudget.amount;
-					toast.error(`⚠️ Budget exceeded! You've overspent by $${overspent.toFixed(2)} in ${newExpense.category}`, {
-						duration: 6000
-					});
-				} else if (percentage >= 90) {
-					const remaining = relevantBudget.amount - monthlySpent;
-					toast.warning(`⚠️ Budget warning! Only $${remaining.toFixed(2)} left in ${newExpense.category} budget`, {
-						duration: 5000
-					});
-				} else {
-					toast.success('Expense added successfully!');
-				}
-			} else {
-				toast.success('Expense added successfully!');
-			}
-
+			toast.success('Expense added successfully!');
 			return newExpense;
 		} catch (error) {
 			set({ isSubmitting: false });
@@ -80,9 +40,58 @@ export const useExpenseStore = create((set, get) => ({
 		}
 	},
 
+	// Update expense
+	updateExpense: async (id, expenseData) => {
+		set({ isSubmitting: true });
+		try {
+			const updatedExpense = await expenseApi.updateExpense(id, expenseData);
+			const currentExpenses = get().expenses;
+			const updatedExpenses = currentExpenses.map(expense =>
+				expense.id === id ? updatedExpense : expense
+			);
+			set({
+				expenses: updatedExpenses,
+				isSubmitting: false
+			});
+			toast.success('Expense updated successfully!');
+			return updatedExpense;
+		} catch (error) {
+			set({ isSubmitting: false });
+			toast.error(error.message || 'Failed to update expense');
+			throw error;
+		}
+	},
+
+	// Delete expense
+	deleteExpense: async (id) => {
+		try {
+			await expenseApi.deleteExpense(id);
+			const currentExpenses = get().expenses;
+			const filteredExpenses = currentExpenses.filter(expense => expense.id !== id);
+			set({ expenses: filteredExpenses });
+			toast.success('Expense deleted successfully!');
+		} catch (error) {
+			toast.error(error.message || 'Failed to delete expense');
+			throw error;
+		}
+	},
+
+	// Get expenses by category
+	getExpensesByCategory: () => {
+		const expenses = get().expenses;
+		const categoryTotals = {};
+
+		expenses.forEach(expense => {
+			const category = expense.category || 'Other';
+			categoryTotals[category] = (categoryTotals[category] || 0) + expense.amount;
+		});
+
+		return categoryTotals;
+	},
+
 	// Get total expenses
 	getTotalExpenses: () => {
-		const { expenses } = get();
+		const expenses = get().expenses;
 		return expenses.reduce((total, expense) => total + expense.amount, 0);
 	},
 
