@@ -187,7 +187,7 @@ export const budgetApi = {
 		return handleResponse(response);
 	},
 
-		getBudget: async (id) => {
+	getBudget: async (id) => {
 		const response = await fetch(`${API_BASE_URL}/budgets/${id}`, {
 			headers: getAuthHeaders(),
 		});
@@ -207,6 +207,18 @@ export const budgetApi = {
 		const response = await fetch(`${API_BASE_URL}/budgets/${id}`, {
 			method: 'DELETE',
 			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+};
+
+// Categories API
+export const categoriesApi = {
+	suggestCategory: async (description, amount) => {
+		const response = await fetch(`${API_BASE_URL}/categories/suggest`, {
+			method: 'POST',
+			headers: getAuthHeaders(),
+			body: JSON.stringify({ description, amount }),
 		});
 		return handleResponse(response);
 	},
