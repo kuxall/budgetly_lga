@@ -10,6 +10,7 @@ import Income from "./pages/Income/Income";
 import Expenses from "./pages/Expenses/Expenses";
 import Budget from "./pages/Budget/Budget";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
+import Settings from "./pages/Settings/Settings";
 
 
 import { useAuthStore } from "./store/authStore";
@@ -68,6 +69,7 @@ function App() {
           <Route path="/income" element={isAuthenticated ? <Income /> : <Navigate to="/login" />} />
           <Route path="/expenses" element={isAuthenticated ? <Expenses /> : <Navigate to="/login" />} />
           <Route path="/budget" element={isAuthenticated ? <Budget /> : <Navigate to="/login" />} />
+          <Route path="/settings" element={isAuthenticated ? <Settings /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </Router>

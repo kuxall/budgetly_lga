@@ -11,6 +11,7 @@ import secrets
 import re
 import bcrypt
 import json
+import logging
 
 # Load environment variables
 try:
@@ -22,6 +23,12 @@ except ImportError:
 # Import services
 from services.data_services import data_service
 from services.email_service import email_service
+from services.settings_service import setting_service, get_settings_service
+
+
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Budgetly API",
@@ -793,6 +800,281 @@ async def get_budgets(current_user: Dict = Depends(get_current_user)):
     user_budgets = [budget for budget in data_service.budgets_db if budget["user_id"]
                     == current_user["id"]]
     return user_budgets
+
+
+
+@app.get("/api/v1/settings")
+async def get_user_settings(current_user: Dict = Depends(get_current_user)):
+    """Get all user settings."""
+    try:
+        settings_service = get_settings_service()
+        settings = settings_service.get_user_settings(current_user["id"])
+
+        return {
+            "success": True,
+            "settings": settings
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting user settings: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get user settings: {str(e)}"
+        ) from e
+
+
+@app.put("/api/v1/settings/profile")
+async def update_profile_settings(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Update user profile settings."""
+    try:
+        data = await request.json()
+        settings_service = get_settings_service()
+
+        updated_settings = settings_service.update_profile(
+            current_user["id"], data)
+
+        return {
+            "success": True,
+            "settings": updated_settings,
+            "message": "Profile updated successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Error updating profile: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update profile: {str(e)}"
+        ) from e
+
+
+@app.put("/api/v1/settings/preferences")
+async def update_preferences_settings(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Update user preferences."""
+    try:
+        from services.settings_service import get_settings_service
+
+        data = await request.json()
+        settings_service = get_settings_service()
+
+        updated_settings = settings_service.update_preferences(
+            current_user["id"], data)
+
+        return {
+            "success": True,
+            "settings": updated_settings,
+            "message": "Preferences updated successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Error updating preferences: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update preferences: {str(e)}"
+        ) from e
+
+
+@app.put("/api/v1/settings/notifications")
+async def update_notification_settings(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Update notification preferences."""
+    try:
+        from services.settings_service import get_settings_service
+
+        data = await request.json()
+        settings_service = get_settings_service()
+
+        updated_settings = settings_service.update_notifications(
+            current_user["id"], data)
+
+        return {
+            "success": True,
+            "settings": updated_settings,
+            "message": "Notification preferences updated successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Error updating notifications: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update notifications: {str(e)}"
+        ) from e
+
+
+@app.put("/api/v1/settings/receipts")
+async def update_receipt_settings(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Update receipt processing settings."""
+    try:
+        from services.settings_service import get_settings_service
+
+        data = await request.json()
+        settings_service = get_settings_service()
+
+        updated_settings = settings_service.update_receipt_settings(
+            current_user["id"], data)
+
+        return {
+            "success": True,
+            "settings": updated_settings,
+            "message": "Receipt settings updated successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Error updating receipt settings: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update receipt settings: {str(e)}"
+        ) from e
+
+
+@app.put("/api/v1/settings/security")
+async def update_security_settings(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Update security settings."""
+    try:
+        from services.settings_service import get_settings_service
+
+        data = await request.json()
+        settings_service = get_settings_service()
+
+        updated_settings = settings_service.update_security_settings(
+            current_user["id"], data)
+
+        return {
+            "success": True,
+            "settings": updated_settings,
+            "message": "Security settings updated successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"Error updating security settings: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update security settings: {str(e)}"
+        ) from e
+
+
+@app.post("/api/v1/auth/change-password")
+async def change_password(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Change user password."""
+    try:
+        data = await request.json()
+
+        # Validate required fields
+        validate_required_fields(data, ["currentPassword", "newPassword"])
+
+        current_password = data["currentPassword"]
+        new_password = data["newPassword"]
+
+        # Verify current password
+        if not verify_password(current_password, current_user["password_hash"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect"
+            )
+
+        # Validate new password strength
+        if len(new_password) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New password must be at least 8 characters long"
+            )
+
+        # Update password
+        current_user["password_hash"] = hash_password(new_password)
+        current_user["updated_at"] = datetime.utcnow().isoformat()
+
+        # Save to data service
+        data_service.save_user(current_user["id"], current_user)
+
+        return {
+            "success": True,
+            "message": "Password changed successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error changing password: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to change password: {str(e)}"
+        ) from e
+
+
+@app.get("/api/v1/settings/statistics")
+async def get_user_statistics(current_user: Dict = Depends(get_current_user)):
+    """Get user account statistics."""
+    try:
+        from services.settings_service import get_settings_service
+
+        settings_service = get_settings_service()
+        statistics = settings_service.get_user_statistics(current_user["id"])
+
+        return {
+            "success": True,
+            "statistics": statistics
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting user statistics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get user statistics: {str(e)}"
+        ) from e
+
+
+@app.post("/api/v1/settings/export-data")
+async def export_user_data(current_user: Dict = Depends(get_current_user)):
+    """Export user data (placeholder for future implementation)."""
+    try:
+        # TODO: Implement actual data export functionality
+        # This would typically generate a ZIP file with all user data
+
+        return {
+            "success": True,
+            "message": "Data export initiated. You'll receive an email when ready.",
+            "note": "This is a placeholder implementation"
+        }
+
+    except Exception as e:
+        logger.error(f"Error exporting user data: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to export user data: {str(e)}"
+        ) from e
+
+
+@app.delete("/api/v1/settings/delete-account")
+async def delete_user_account(current_user: Dict = Depends(get_current_user)):
+    """Delete user account and all associated data."""
+    try:
+        user_id = current_user["id"]
+
+        # TODO: Implement comprehensive account deletion
+        # This should delete:
+        # - User profile
+        # - All expenses
+        # - All budgets
+        # - All income records
+        # - All settings
+        # - All stored images
+
+        # For now, just deactivate the account
+        current_user["is_active"] = False
+        current_user["deleted_at"] = datetime.utcnow().isoformat()
+        current_user["updated_at"] = datetime.utcnow().isoformat()
+
+        data_service.save_user(user_id, current_user)
+
+        return {
+            "success": True,
+            "message": "Account deletion initiated. You will be logged out shortly."
+        }
+
+    except Exception as e:
+        logger.error(f"Error deleting user account: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete account: {str(e)}"
+        ) from e
 
 
 # @app.delete("/api/v1/budgets/{budget_id}")
