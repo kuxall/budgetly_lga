@@ -7,6 +7,9 @@ import {
 	DollarSign,
 	Camera,
 	Sparkles,
+	Edit2,
+	Save,
+	X,
 } from "lucide-react";
 import ReceiptUpload from "../../components/ui/ReceiptUpload";
 import MainLayout from "../../components/layout/MainLayout";
@@ -18,6 +21,7 @@ const Expenses = () => {
 		isSubmitting,
 		fetchExpenses,
 		createExpense,
+		updateExpense,
 		deleteExpense,
 	} = useExpenseStore();
 
@@ -32,6 +36,8 @@ const Expenses = () => {
 
 	const [showReceiptUpload, setShowReceiptUpload] = useState(false);
 	const [isGettingSuggestion, setIsGettingSuggestion] = useState(false);
+	const [editingExpense, setEditingExpense] = useState(null);
+	const [editFormData, setEditFormData] = useState({});
 
 	useEffect(() => {
 		fetchExpenses();
@@ -98,6 +104,48 @@ const Expenses = () => {
 		} finally {
 			setIsGettingSuggestion(false);
 		}
+	};
+
+	const handleEdit = (expense) => {
+		setEditingExpense(expense.id);
+		setEditFormData({
+			description: expense.description,
+			amount: expense.amount.toString(),
+			category: expense.category,
+			date: expense.date,
+			payment_method: expense.payment_method,
+			notes: expense.notes || "",
+		});
+	};
+
+	const handleCancelEdit = () => {
+		setEditingExpense(null);
+		setEditFormData({});
+	};
+
+	const handleSaveEdit = async () => {
+		if (!editFormData.description || !editFormData.amount) {
+			alert("Please fill in description and amount");
+			return;
+		}
+
+		try {
+			await updateExpense(editingExpense, {
+				...editFormData,
+				amount: parseFloat(editFormData.amount),
+			});
+			setEditingExpense(null);
+			setEditFormData({});
+		} catch (error) {
+			console.error("Failed to update expense:", error);
+		}
+	};
+
+	const handleEditChange = (e) => {
+		setEditFormData({
+			...editFormData,
+			[e.target.name]: e.target.value,
+		});
 	};
 
 	const handleDelete = async (id) => {
@@ -371,49 +419,175 @@ const Expenses = () => {
 										key={expense.id}
 										className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
 									>
-										<div className="flex items-center justify-between">
-											<div className="flex-1">
-												<div className="flex items-center space-x-3">
-													<div className="flex-shrink-0">
-														<DollarSign className="h-5 w-5 text-green-500" />
+										{editingExpense === expense.id ? (
+											// Edit Mode
+											<div className="space-y-4">
+												<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+													<div>
+														<label className="block text-sm font-medium text-gray-700">
+															Description *
+														</label>
+														<input
+															type="text"
+															name="description"
+															value={editFormData.description}
+															onChange={handleEditChange}
+															className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+															placeholder="Enter expense description"
+															required
+														/>
 													</div>
 													<div>
-														<h5 className="text-sm font-medium text-gray-900">
-															{formatExpenseDescription(expense)}
-														</h5>
-														<div className="flex items-center space-x-4 text-xs text-gray-500">
-															<span className="flex items-center">
-																<Calendar className="h-3 w-3 mr-1" />
-																{formatDate(expense.date)}
-															</span>
-															<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-																{expense.category}
-															</span>
-															<span className="capitalize">
-																{expense.payment_method?.replace("_", " ")}
-															</span>
-														</div>
-														{expense.notes && (
-															<p className="text-xs text-gray-600 mt-1">
-																{expense.notes}
-															</p>
-														)}
+														<label className="block text-sm font-medium text-gray-700">
+															Amount *
+														</label>
+														<input
+															type="number"
+															name="amount"
+															value={editFormData.amount}
+															onChange={handleEditChange}
+															step="0.01"
+															min="0"
+															className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+															placeholder="0.00"
+															required
+														/>
+													</div>
+													<div>
+														<label className="block text-sm font-medium text-gray-700">
+															Category
+														</label>
+														<select
+															name="category"
+															value={editFormData.category}
+															onChange={handleEditChange}
+															className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+														>
+															<option value="Food & Dining">Food & Dining</option>
+															<option value="Transportation">Transportation</option>
+															<option value="Shopping">Shopping</option>
+															<option value="Entertainment">Entertainment</option>
+															<option value="Utilities">Utilities</option>
+															<option value="Healthcare">Healthcare</option>
+															<option value="Education">Education</option>
+															<option value="Other">Other</option>
+														</select>
+													</div>
+													<div>
+														<label className="block text-sm font-medium text-gray-700">
+															Date
+														</label>
+														<input
+															type="date"
+															name="date"
+															value={editFormData.date}
+															onChange={handleEditChange}
+															className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+														/>
+													</div>
+													<div>
+														<label className="block text-sm font-medium text-gray-700">
+															Payment Method
+														</label>
+														<select
+															name="payment_method"
+															value={editFormData.payment_method}
+															onChange={handleEditChange}
+															className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+														>
+															<option value="credit_card">Credit Card</option>
+															<option value="debit_card">Debit Card</option>
+															<option value="cash">Cash</option>
+															<option value="bank_transfer">Bank Transfer</option>
+															<option value="digital_wallet">Digital Wallet</option>
+															<option value="other">Other</option>
+														</select>
+													</div>
+													<div>
+														<label className="block text-sm font-medium text-gray-700">
+															Notes
+														</label>
+														<input
+															type="text"
+															name="notes"
+															value={editFormData.notes}
+															onChange={handleEditChange}
+															className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+															placeholder="Optional notes"
+														/>
 													</div>
 												</div>
+												<div className="flex justify-end space-x-2">
+													<button
+														onClick={handleCancelEdit}
+														className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50"
+													>
+														<X className="h-4 w-4 inline mr-1" />
+														Cancel
+													</button>
+													<button
+														onClick={handleSaveEdit}
+														disabled={isSubmitting}
+														className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+													>
+														<Save className="h-4 w-4 inline mr-1" />
+														{isSubmitting ? "Saving..." : "Save"}
+													</button>
+												</div>
 											</div>
-											<div className="flex items-center space-x-3">
-												<span className="text-lg font-semibold text-gray-900">
-													{formatCurrency(expense.amount)}
-												</span>
-												<button
-													onClick={() => handleDelete(expense.id)}
-													className="text-red-600 hover:text-red-800 p-1"
-													title="Delete expense"
-												>
-													<Trash2 className="h-4 w-4" />
-												</button>
+										) : (
+											// View Mode
+											<div className="flex items-center justify-between">
+												<div className="flex-1">
+													<div className="flex items-center space-x-3">
+														<div className="flex-shrink-0">
+															<DollarSign className="h-5 w-5 text-green-500" />
+														</div>
+														<div>
+															<h5 className="text-sm font-medium text-gray-900">
+																{formatExpenseDescription(expense)}
+															</h5>
+															<div className="flex items-center space-x-4 text-xs text-gray-500">
+																<span className="flex items-center">
+																	<Calendar className="h-3 w-3 mr-1" />
+																	{formatDate(expense.date)}
+																</span>
+																<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+																	{expense.category}
+																</span>
+																<span className="capitalize">
+																	{expense.payment_method?.replace("_", " ")}
+																</span>
+															</div>
+															{expense.notes && (
+																<p className="text-xs text-gray-600 mt-1">
+																	{expense.notes}
+																</p>
+															)}
+														</div>
+													</div>
+												</div>
+												<div className="flex items-center space-x-3">
+													<span className="text-lg font-semibold text-gray-900">
+														{formatCurrency(expense.amount)}
+													</span>
+													<button
+														onClick={() => handleEdit(expense)}
+														className="text-blue-600 hover:text-blue-800 p-1"
+														title="Edit expense"
+													>
+														<Edit2 className="h-4 w-4" />
+													</button>
+													<button
+														onClick={() => handleDelete(expense.id)}
+														className="text-red-600 hover:text-red-800 p-1"
+														title="Delete expense"
+													>
+														<Trash2 className="h-4 w-4" />
+													</button>
+												</div>
 											</div>
-										</div>
+										)}
 									</div>
 								))}
 							</div>
