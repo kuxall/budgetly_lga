@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import ReceiptGallery from '../../components/ui/ReceiptGallery';
 import MainLayout from '../../components/layout/MainLayout';
 import toast from 'react-hot-toast';
@@ -14,10 +14,12 @@ const ReceiptsPage = () => {
 
 	return (
 		<MainLayout>
-			<div>
-				{/* Header */}
-				<div className="mb-6">
-					<h1 className="text-2xl font-bold text-gray-900">Receipts</h1>
+			<div className="space-y-6">
+				<div className="border-b border-gray-200 pb-5">
+					<h3 className="text-lg font-medium leading-6 text-gray-900">Receipts</h3>
+					<p className="mt-2 max-w-4xl text-sm text-gray-500">
+						View and manage your uploaded receipts.
+					</p>
 				</div>
 
 				{/* Receipt Gallery */}
