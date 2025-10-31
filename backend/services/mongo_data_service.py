@@ -85,6 +85,25 @@ class MongoDataService:
         col = await self._get_collection(collection)
         await col.delete_many(filter_q)
 
+    async def find_one(self, collection: str, filter_q: Dict) -> Optional[Dict]:
+        col = await self._get_collection(collection)
+        doc = await col.find_one(filter_q)
+        return self._sanitize_doc(doc) if doc else None
+
+    async def find_many(self, collection: str, filter_q: Dict) -> List[Dict]:
+        col = await self._get_collection(collection)
+        cursor = col.find(filter_q)
+        docs = await cursor.to_list(length=None)
+        return [self._sanitize_doc(doc) for doc in docs]
+
+    async def update_one(self, collection: str, filter_q: Dict, update_data: Dict):
+        col = await self._get_collection(collection)
+        # Remove _id from update data to prevent conflicts
+        update_doc = dict(update_data)
+        update_doc.pop("_id", None)
+        result = await col.update_one(filter_q, {"$set": update_doc})
+        return result.modified_count > 0
+
     # Public API mapping to the original DataService sync interface
     # Users map (by id)
     async def users_db(self) -> Dict[str, Dict]:
@@ -98,24 +117,63 @@ class MongoDataService:
     async def expenses_db(self) -> List[Dict]:
         return await self.get_all("expenses")
 
+    async def get_expense(self, expense_id: str) -> Optional[Dict]:
+        return await self.find_one("expenses", {"id": expense_id})
+
+    async def get_expenses_by_user(self, user_id: str) -> List[Dict]:
+        return await self.find_many("expenses", {"user_id": user_id})
+
     async def add_expense(self, expense_data: Dict):
-        await self.insert_one("expenses", expense_data)
+        return await self.insert_one("expenses", expense_data)
+
+    async def update_expense(self, expense_id: str, expense_data: Dict) -> bool:
+        return await self.update_one("expenses", {"id": expense_id}, expense_data)
+
+    async def delete_expense(self, expense_id: str) -> bool:
+        await self.delete_one("expenses", {"id": expense_id})
+        return True
 
     # Budgets
 
     async def budgets_db(self) -> List[Dict]:
         return await self.get_all("budgets")
 
+    async def get_budget(self, budget_id: str) -> Optional[Dict]:
+        return await self.find_one("budgets", {"id": budget_id})
+
+    async def get_budgets_by_user(self, user_id: str) -> List[Dict]:
+        return await self.find_many("budgets", {"user_id": user_id})
+
     async def add_budget(self, budget_data: Dict):
-        await self.insert_one("budgets", budget_data)
+        return await self.insert_one("budgets", budget_data)
+
+    async def update_budget(self, budget_id: str, budget_data: Dict) -> bool:
+        return await self.update_one("budgets", {"id": budget_id}, budget_data)
+
+    async def delete_budget(self, budget_id: str) -> bool:
+        await self.delete_one("budgets", {"id": budget_id})
+        return True
 
     # Income
 
     async def income_db(self) -> List[Dict]:
         return await self.get_all("income")
 
+    async def get_income(self, income_id: str) -> Optional[Dict]:
+        return await self.find_one("income", {"id": income_id})
+
+    async def get_income_by_user(self, user_id: str) -> List[Dict]:
+        return await self.find_many("income", {"user_id": user_id})
+
     async def add_income(self, income_data: Dict):
-        await self.insert_one("income", income_data)
+        return await self.insert_one("income", income_data)
+
+    async def update_income(self, income_id: str, income_data: Dict) -> bool:
+        return await self.update_one("income", {"id": income_id}, income_data)
+
+    async def delete_income(self, income_id: str) -> bool:
+        await self.delete_one("income", {"id": income_id})
+        return True
 
     # Reset tokens
     async def reset_tokens_db(self) -> Dict[str, Dict]:
@@ -212,22 +270,58 @@ class MongoDataServiceSyncWrapper:
     def expenses_db(self) -> List[Dict]:
         return self._run(self._async.expenses_db())
 
+    def get_expense(self, expense_id: str) -> Optional[Dict]:
+        return self._run(self._async.get_expense(expense_id))
+
+    def get_expenses_by_user(self, user_id: str) -> List[Dict]:
+        return self._run(self._async.get_expenses_by_user(user_id))
+
     def add_expense(self, expense_data: Dict):
         return self._run(self._async.add_expense(expense_data))
+
+    def update_expense(self, expense_id: str, expense_data: Dict) -> bool:
+        return self._run(self._async.update_expense(expense_id, expense_data))
+
+    def delete_expense(self, expense_id: str) -> bool:
+        return self._run(self._async.delete_expense(expense_id))
 
     @property
     def budgets_db(self) -> List[Dict]:
         return self._run(self._async.budgets_db())
 
+    def get_budget(self, budget_id: str) -> Optional[Dict]:
+        return self._run(self._async.get_budget(budget_id))
+
+    def get_budgets_by_user(self, user_id: str) -> List[Dict]:
+        return self._run(self._async.get_budgets_by_user(user_id))
+
     def add_budget(self, budget_data: Dict):
         return self._run(self._async.add_budget(budget_data))
+
+    def update_budget(self, budget_id: str, budget_data: Dict) -> bool:
+        return self._run(self._async.update_budget(budget_id, budget_data))
+
+    def delete_budget(self, budget_id: str) -> bool:
+        return self._run(self._async.delete_budget(budget_id))
 
     @property
     def income_db(self) -> List[Dict]:
         return self._run(self._async.income_db())
 
+    def get_income(self, income_id: str) -> Optional[Dict]:
+        return self._run(self._async.get_income(income_id))
+
+    def get_income_by_user(self, user_id: str) -> List[Dict]:
+        return self._run(self._async.get_income_by_user(user_id))
+
     def add_income(self, income_data: Dict):
         return self._run(self._async.add_income(income_data))
+
+    def update_income(self, income_id: str, income_data: Dict) -> bool:
+        return self._run(self._async.update_income(income_id, income_data))
+
+    def delete_income(self, income_id: str) -> bool:
+        return self._run(self._async.delete_income(income_id))
 
     @property
     def reset_tokens_db(self) -> Dict[str, Dict]:

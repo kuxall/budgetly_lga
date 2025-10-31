@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useIncomeStore } from "../../store/incomeStore";
-import { Trash2, DollarSign, Calendar } from "lucide-react";
+import { Trash2, DollarSign, Calendar, Edit2, Save, X } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 
 const Income = () => {
@@ -10,6 +10,7 @@ const Income = () => {
 		isSubmitting,
 		fetchIncome,
 		createIncome,
+		updateIncome,
 		deleteIncome,
 		getTotalIncome,
 	} = useIncomeStore();
@@ -20,6 +21,9 @@ const Income = () => {
 		date: new Date().toISOString().split("T")[0],
 		description: "",
 	});
+
+	const [editingIncome, setEditingIncome] = useState(null);
+	const [editFormData, setEditFormData] = useState({});
 
 	useEffect(() => {
 		fetchIncome();
@@ -54,6 +58,46 @@ const Income = () => {
 	const handleChange = (e) => {
 		setFormData({
 			...formData,
+			[e.target.name]: e.target.value,
+		});
+	};
+
+	const handleEdit = (incomeItem) => {
+		setEditingIncome(incomeItem.id);
+		setEditFormData({
+			source: incomeItem.source,
+			amount: incomeItem.amount.toString(),
+			date: incomeItem.date,
+			description: incomeItem.description || "",
+		});
+	};
+
+	const handleCancelEdit = () => {
+		setEditingIncome(null);
+		setEditFormData({});
+	};
+
+	const handleSaveEdit = async () => {
+		if (!editFormData.source || !editFormData.amount) {
+			alert("Please fill in source and amount");
+			return;
+		}
+
+		try {
+			await updateIncome(editingIncome, {
+				...editFormData,
+				amount: parseFloat(editFormData.amount),
+			});
+			setEditingIncome(null);
+			setEditFormData({});
+		} catch (error) {
+			console.error("Failed to update income:", error);
+		}
+	};
+
+	const handleEditChange = (e) => {
+		setEditFormData({
+			...editFormData,
 			[e.target.name]: e.target.value,
 		});
 	};
@@ -200,43 +244,131 @@ const Income = () => {
 										key={incomeItem.id}
 										className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
 									>
-										<div className="flex items-center justify-between">
-											<div className="flex-1">
-												<div className="flex items-center space-x-3">
-													<div className="flex-shrink-0">
-														<DollarSign className="h-5 w-5 text-green-500" />
+										{editingIncome === incomeItem.id ? (
+											// Edit Mode
+											<div className="space-y-4">
+												<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+													<div>
+														<label className="block text-sm font-medium text-gray-700">
+															Source *
+														</label>
+														<input
+															type="text"
+															name="source"
+															value={editFormData.source}
+															onChange={handleEditChange}
+															className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm"
+															placeholder="e.g., Salary, Freelance"
+															required
+														/>
 													</div>
 													<div>
-														<h5 className="text-sm font-medium text-gray-900">
-															{incomeItem.source}
-														</h5>
-														<div className="flex items-center space-x-4 text-xs text-gray-500">
-															<span className="flex items-center">
-																<Calendar className="h-3 w-3 mr-1" />
-																{formatDate(incomeItem.date)}
-															</span>
-														</div>
-														{incomeItem.description && (
-															<p className="text-xs text-gray-600 mt-1">
-																{incomeItem.description}
-															</p>
-														)}
+														<label className="block text-sm font-medium text-gray-700">
+															Amount *
+														</label>
+														<input
+															type="number"
+															name="amount"
+															value={editFormData.amount}
+															onChange={handleEditChange}
+															step="0.01"
+															min="0"
+															className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm"
+															placeholder="0.00"
+															required
+														/>
+													</div>
+													<div>
+														<label className="block text-sm font-medium text-gray-700">
+															Date
+														</label>
+														<input
+															type="date"
+															name="date"
+															value={editFormData.date}
+															onChange={handleEditChange}
+															className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm"
+														/>
+													</div>
+													<div>
+														<label className="block text-sm font-medium text-gray-700">
+															Description
+														</label>
+														<input
+															type="text"
+															name="description"
+															value={editFormData.description}
+															onChange={handleEditChange}
+															className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm"
+															placeholder="Optional description"
+														/>
 													</div>
 												</div>
+												<div className="flex justify-end space-x-2">
+													<button
+														onClick={handleCancelEdit}
+														className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50"
+													>
+														<X className="h-4 w-4 inline mr-1" />
+														Cancel
+													</button>
+													<button
+														onClick={handleSaveEdit}
+														disabled={isSubmitting}
+														className="px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+													>
+														<Save className="h-4 w-4 inline mr-1" />
+														{isSubmitting ? "Saving..." : "Save"}
+													</button>
+												</div>
 											</div>
-											<div className="flex items-center space-x-3">
-												<span className="text-lg font-semibold text-green-600">
-													+{formatCurrency(incomeItem.amount)}
-												</span>
-												<button
-													onClick={() => handleDelete(incomeItem.id)}
-													className="text-red-600 hover:text-red-800 p-1"
-													title="Delete income"
-												>
-													<Trash2 className="h-4 w-4" />
-												</button>
+										) : (
+											// View Mode
+											<div className="flex items-center justify-between">
+												<div className="flex-1">
+													<div className="flex items-center space-x-3">
+														<div className="flex-shrink-0">
+															<DollarSign className="h-5 w-5 text-green-500" />
+														</div>
+														<div>
+															<h5 className="text-sm font-medium text-gray-900">
+																{incomeItem.source}
+															</h5>
+															<div className="flex items-center space-x-4 text-xs text-gray-500">
+																<span className="flex items-center">
+																	<Calendar className="h-3 w-3 mr-1" />
+																	{formatDate(incomeItem.date)}
+																</span>
+															</div>
+															{incomeItem.description && (
+																<p className="text-xs text-gray-600 mt-1">
+																	{incomeItem.description}
+																</p>
+															)}
+														</div>
+													</div>
+												</div>
+												<div className="flex items-center space-x-3">
+													<span className="text-lg font-semibold text-green-600">
+														+{formatCurrency(incomeItem.amount)}
+													</span>
+													<button
+														onClick={() => handleEdit(incomeItem)}
+														className="text-blue-600 hover:text-blue-800 p-1"
+														title="Edit income"
+													>
+														<Edit2 className="h-4 w-4" />
+													</button>
+													<button
+														onClick={() => handleDelete(incomeItem.id)}
+														className="text-red-600 hover:text-red-800 p-1"
+														title="Delete income"
+													>
+														<Trash2 className="h-4 w-4" />
+													</button>
+												</div>
 											</div>
-										</div>
+										)}
 									</div>
 								))}
 							</div>
