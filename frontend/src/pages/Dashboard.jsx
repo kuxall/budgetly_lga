@@ -1,17 +1,15 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
 	TrendingUp,
 	TrendingDown,
 	Target,
-	CreditCard,
 	Plus,
 	DollarSign,
 	AlertTriangle,
 	ArrowUpRight,
 	ArrowDownRight,
-	CheckCircle
 } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
 import { useExpenseStore } from "../store/expenseStore";
@@ -30,6 +28,25 @@ const Dashboard = () => {
 		fetchIncome();
 		fetchBudgets();
 	}, [fetchExpenses, fetchIncome, fetchBudgets]);
+
+	// Debug logging for data
+	console.log('Dashboard Data Debug:', {
+		expensesCount: expenses.length,
+		budgetsCount: budgets.length,
+		expenses: expenses.map(e => ({
+			id: e.id,
+			category: e.category,
+			amount: e.amount,
+			date: e.date,
+			description: e.description
+		})),
+		budgets: budgets.map(b => ({
+			id: b.id,
+			category: b.category,
+			amount: b.amount,
+			period: b.period
+		}))
+	});
 
 	// Calculate current month totals
 	const currentDate = new Date();
@@ -252,25 +269,57 @@ const Dashboard = () => {
 							<h3 className="text-lg font-semibold text-gray-900">Budget Status</h3>
 							<Link to="/budget" className="text-blue-600 text-sm hover:underline">View all</Link>
 						</div>
-						<div className="space-y-3">
+						<div className="space-y-4">
 							{budgets.slice(0, 3).map((budget) => {
 								const progress = getBudgetProgress(budget.id, expenses);
 								const percentage = (progress.spent / budget.amount) * 100;
+								const isOverBudget = percentage > 100;
+								const overspent = progress.spent - budget.amount;
+
+
+
 								return (
 									<div key={budget.id} className="space-y-2">
 										<div className="flex items-center justify-between">
 											<span className="text-sm font-medium text-gray-900">{budget.category}</span>
-											<span className="text-xs text-gray-500">{percentage.toFixed(0)}%</span>
+											<div className="text-right">
+												{isOverBudget ? (
+													<div>
+														<span className="text-xs font-medium text-red-600">
+															Over by {formatCurrency(overspent)}
+														</span>
+														<div className="text-xs text-gray-500">
+															{formatCurrency(progress.spent)} / {formatCurrency(budget.amount)}
+														</div>
+													</div>
+												) : (
+													<div>
+														<span className="text-xs text-gray-500">{percentage.toFixed(0)}%</span>
+														<div className="text-xs text-gray-400">
+															{formatCurrency(progress.remaining)} left
+														</div>
+													</div>
+												)}
+											</div>
 										</div>
-										<div className="w-full bg-gray-200 rounded-full h-2">
+										<div className="w-full bg-gray-200 rounded-full h-2 relative overflow-hidden">
 											<div
-												className={`h-2 rounded-full ${percentage >= 100 ? 'bg-red-500' :
+												className={`h-2 rounded-full transition-all duration-300 ${percentage >= 100 ? 'bg-red-500' :
 													percentage >= 90 ? 'bg-orange-500' :
 														percentage >= 75 ? 'bg-yellow-500' : 'bg-green-500'
 													}`}
 												style={{ width: `${Math.min(percentage, 100)}%` }}
 											></div>
+											{isOverBudget && (
+												<div className="absolute inset-0 bg-red-500 opacity-20 animate-pulse"></div>
+											)}
 										</div>
+										{isOverBudget && (
+											<div className="flex items-center text-xs text-red-600">
+												<AlertTriangle className="h-3 w-3 mr-1" />
+												<span>Budget exceeded</span>
+											</div>
+										)}
 									</div>
 								);
 							})}

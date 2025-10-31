@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Wallet, Home, DollarSign, CreditCard, Target, LogOut } from "lucide-react";
+import { Wallet, Home, DollarSign, CreditCard, Target, Receipt, LogOut } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 
 const MainLayout = ({ children }) => {
@@ -11,6 +11,7 @@ const MainLayout = ({ children }) => {
 		{ name: "Dashboard", href: "/dashboard", icon: Home },
 		{ name: "Income", href: "/income", icon: DollarSign },
 		{ name: "Expenses", href: "/expenses", icon: CreditCard },
+		{ name: "Receipts", href: "/receipts", icon: Receipt },
 		{ name: "Budget", href: "/budget", icon: Target },
 		{ name: "Settings", href: "/settings", icon: Target },
 	];
@@ -39,8 +40,8 @@ const MainLayout = ({ children }) => {
 										key={item.name}
 										to={item.href}
 										className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive(item.href)
-												? "bg-blue-100 text-blue-700"
-												: "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+											? "bg-blue-100 text-blue-700"
+											: "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
 											}`}
 									>
 										<Icon className="h-4 w-4" />
@@ -77,8 +78,8 @@ const MainLayout = ({ children }) => {
 									key={item.name}
 									to={item.href}
 									className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${isActive(item.href)
-											? "bg-blue-100 text-blue-700"
-											: "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+										? "bg-blue-100 text-blue-700"
+										: "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
 										}`}
 								>
 									<Icon className="h-4 w-4" />
