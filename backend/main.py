@@ -718,27 +718,87 @@ async def get_expenses(current_user: Dict = Depends(get_current_user)):
                      == current_user["id"]]
     return user_expenses
 
+@app.get("/api/v1/expenses/{expense_id}")
+async def get_expense(expense_id: str, current_user: Dict = Depends(get_current_user)):
+    """Get specific expense."""
+    expense = None
+    for exp in data_service.expenses_db:
+        if exp["id"] == expense_id and exp["user_id"] == current_user["id"]:
+            expense = exp
+            break
 
-# @app.delete("/api/v1/expenses/{expense_id}")
-# async def delete_expense(expense_id: str, current_user: Dict = Depends(get_current_user)):
-#     """Delete expense record."""
-#     # Find expense
-#     expense = None
-#     for exp in data_service.expenses_db:
-#         if exp["id"] == expense_id and exp["user_id"] == current_user["id"]:
-#             expense = exp
-#             break
+    if not expense:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expense not found"
+        )
 
-#     if not expense:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="Expense record not found"
-#         )
+    return expense
 
-#     data_service.expenses_db.remove(expense)
-#     data_service.save_data()
+  @app.put("/api/v1/expenses/{expense_id}")
+async def update_expense(expense_id: str, request: Request, current_user: Dict = Depends(get_current_user)):
+    """Update expense."""
+    data = await request.json()
 
-#     return {"message": "Expense record deleted successfully"}
+    # Find expense
+    expense = None
+    expense_index = None
+    for i, exp in enumerate(data_service.expenses_db):
+        if exp["id"] == expense_id and exp["user_id"] == current_user["id"]:
+            expense = exp
+            expense_index = i
+            break
+
+    if not expense:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expense not found"
+        )
+      
+          # Update fields
+    updatable_fields = ["amount", "description",
+                        "category", "date", "payment_method", "notes", "tags"]
+    for field in updatable_fields:
+        if field in data:
+            if field == "amount":
+                try:
+                    amount = float(data[field])
+                    if amount <= 0:
+                        raise ValueError()
+                    expense[field] = amount
+                except (ValueError, TypeError):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Amount must be a positive number"
+                    )
+            else:
+                expense[field] = data[field]
+
+    expense["updated_at"] = datetime.utcnow().isoformat()
+    data_service.update_expense(expense_id, expense)
+
+    return expense
+
+@app.delete("/api/v1/expenses/{expense_id}")
+async def delete_expense(expense_id: str, current_user: Dict = Depends(get_current_user)):
+    """Delete expense record."""
+    # Find expense
+    expense = None
+    for exp in data_service.expenses_db:
+        if exp["id"] == expense_id and exp["user_id"] == current_user["id"]:
+            expense = exp
+            break
+
+    if not expense:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expense record not found"
+        )
+
+    data_service.expenses_db.remove(expense)
+    data_service.save_data()
+
+    return {"message": "Expense record deleted successfully"}
 
 
 # Budget endpoints
@@ -800,26 +860,106 @@ async def get_budgets(current_user: Dict = Depends(get_current_user)):
     return user_budgets
 
 
-# @app.delete("/api/v1/budgets/{budget_id}")
-# async def delete_budget(budget_id: str, current_user: Dict = Depends(get_current_user)):
-#     """Delete budget."""
-#     # Find budget
-#     budget = None
-#     for b in data_service.budgets_db:
-#         if b["id"] == budget_id and b["user_id"] == current_user["id"]:
-#             budget = b
-#             break
+@app.put("/api/v1/budgets/{budget_id}")
+async def update_budget(budget_id: str, request: Request, current_user: Dict = Depends(get_current_user)):
+    """Update an existing budget."""
+    data = await request.json()
 
-#     if not budget:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="Budget not found"
-#         )
+    # Find the budget that belongs to the user
+    user_budget = None
+    for budget in data_service.budgets_db:
+        if budget["id"] == budget_id and budget["user_id"] == current_user["id"]:
+            user_budget = budget
+            break
 
-#     data_service.budgets_db.remove(budget)
-#     data_service.save_data()
+    if not user_budget:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Budget not found"
+        )
 
-#     return {"message": "Budget deleted successfully"}
+    # Validate amount if provided
+    if "amount" in data:
+        try:
+            amount = float(data["amount"])
+            if amount <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Amount must be a positive number"
+            )
+
+    # Create updated budget
+    updated_budget = user_budget.copy()
+
+    # Update allowed fields
+    allowed_fields = ["category", "amount", "period", "is_active"]
+    for field in allowed_fields:
+        if field in data:
+            if field == "amount":
+                updated_budget[field] = float(data[field])
+            else:
+                updated_budget[field] = data[field]
+
+    updated_budget["updated_at"] = datetime.utcnow().isoformat()
+
+    # Update in data service
+    if not data_service.update_budget(budget_id, updated_budget):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update budget"
+        )
+
+    return updated_budget
+
+
+@app.delete("/api/v1/budgets/{budget_id}")
+async def delete_budget(budget_id: str, current_user: Dict = Depends(get_current_user)):
+    """Delete a budget."""
+    # Find the budget that belongs to the user
+    user_budget = None
+    for budget in data_service.budgets_db:
+        if budget["id"] == budget_id and budget["user_id"] == current_user["id"]:
+            user_budget = budget
+            break
+
+    if not user_budget:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Budget not found"
+        )
+
+    # Delete the budget
+    if not data_service.delete_budget(budget_id):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete budget"
+        )
+
+    return {"message": "Budget deleted successfully"}
+
+
+@app.delete("/api/v1/budgets/{budget_id}")
+async def delete_budget(budget_id: str, current_user: Dict = Depends(get_current_user)):
+    """Delete budget."""
+    # Find budget
+    budget = None
+    for b in data_service.budgets_db:
+        if b["id"] == budget_id and b["user_id"] == current_user["id"]:
+            budget = b
+            break
+
+    if not budget:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Budget not found"
+        )
+
+    data_service.budgets_db.remove(budget)
+    data_service.save_data()
+
+    return {"message": "Budget deleted successfully"}
 
 
 # OCR Receipt Processing Endpoints

@@ -1,10 +1,15 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useExpenseStore } from "../../store/expenseStore";
-import { Calendar, DollarSign, Upload, Receipt, Plus } from "lucide-react";
-import toast from 'react-hot-toast';
-import MainLayout from "../../components/layout/MainLayout";
-import ReceiptUpload from "../../components/ui/ReceiptUpload";
-import { useBudgetStore } from "../../store/budgetStore";
+import { categoriesApi } from "../../services/api";
+import {
+	Trash2,
+	Edit,
+	Calendar,
+	DollarSign,
+	Camera,
+	Sparkles,
+} from "lucide-react";
+import ReceiptUpload from "../../components/ReceiptUpload";
 
 const Expenses = () => {
 	const {
@@ -13,9 +18,8 @@ const Expenses = () => {
 		isSubmitting,
 		fetchExpenses,
 		createExpense,
+		deleteExpense,
 	} = useExpenseStore();
-
-	const { budgets, fetchBudgets } = useBudgetStore();
 
 	const [formData, setFormData] = useState({
 		description: "",
@@ -31,37 +35,20 @@ const Expenses = () => {
 
 	useEffect(() => {
 		fetchExpenses();
-		fetchBudgets();
-	}, [fetchExpenses, fetchBudgets]);
-
-	const handleExpenseCreated = () => {
-		// Refresh expenses list when a new expense is created from receipt
-		fetchExpenses();
-	};
-
-	const handleReceiptProcessed = (result) => {
-		// Could show a success message or update UI
-		console.log('Receipt processed:', result);
-	};
+	}, [fetchExpenses]);
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
 
 		if (!formData.description || !formData.amount) {
-			toast.error("Please fill in description and amount");
-			return;
-		}
-
-		const amount = parseFloat(formData.amount);
-		if (isNaN(amount) || amount <= 0) {
-			toast.error("Please enter a valid amount greater than 0");
+			alert("Please fill in description and amount");
 			return;
 		}
 
 		try {
 			await createExpense({
 				...formData,
-				amount: amount,
+				amount: parseFloat(formData.amount),
 			});
 
 			// Reset form
@@ -73,8 +60,8 @@ const Expenses = () => {
 				payment_method: "credit_card",
 				notes: "",
 			});
-		} catch (err) {
-			toast.error("Failed to create expense. Please try again.");
+		} catch (error) {
+			console.error("Failed to create expense:", error);
 		}
 	};
 
@@ -84,6 +71,43 @@ const Expenses = () => {
 			...formData,
 			[name]: value,
 		});
+
+		// Auto-suggest category when description changes
+		if (name === "description" && value.length > 3 && formData.amount) {
+			await getSuggestion(value, formData.amount);
+		}
+	};
+
+	const getSuggestion = async (description, amount) => {
+		if (isGettingSuggestion) return;
+
+		setIsGettingSuggestion(true);
+		try {
+			const suggestion = await categoriesApi.suggestCategory(
+				description,
+				amount
+			);
+			if (suggestion.category && suggestion.confidence > 0.7) {
+				setFormData((prev) => ({
+					...prev,
+					category: suggestion.category,
+				}));
+			}
+		} catch (error) {
+			console.error("Failed to get category suggestion:", error);
+		} finally {
+			setIsGettingSuggestion(false);
+		}
+	};
+
+	const handleDelete = async (id) => {
+		if (window.confirm("Are you sure you want to delete this expense?")) {
+			try {
+				await deleteExpense(id);
+			} catch (error) {
+				console.error("Failed to delete expense:", error);
+			}
+		}
 	};
 
 	const formatCurrency = (amount) => {
@@ -94,306 +118,319 @@ const Expenses = () => {
 	};
 
 	const formatDate = (dateString) => {
-		const date = new Date(dateString);
-		if (isNaN(date.getTime())) {
-			return "Invalid Date";
-		}
-		return date.toLocaleDateString();
+		return new Date(dateString).toLocaleDateString();
 	};
 
 	const formatExpenseDescription = (expense) => {
-		return expense.description || 'No description';
-	};
+		const { description, category, merchant } = expense;
 
-	const getSuggestion = async (description) => {
-		if (isGettingSuggestion) return;
+		// Debug logging to see what data we have
+		console.log("Expense data:", { description, category, merchant, expense });
 
-		setIsGettingSuggestion(true);
-		try {
-			// Simple category suggestion based on keywords
-			const keywords = {
-				"Food & Dining": ["food", "restaurant", "coffee", "lunch", "dinner", "grocery"],
-				"Transportation": ["gas", "fuel", "uber", "taxi", "bus", "train"],
-				"Shopping": ["store", "mall", "amazon", "clothes", "shopping"],
-				"Entertainment": ["movie", "game", "concert", "netflix", "spotify"],
-				"Utilities": ["electric", "water", "internet", "phone", "bill"],
-				"Healthcare": ["doctor", "pharmacy", "hospital", "medicine"],
-			};
+		// If we have a merchant field and description is generic, create a better description
+		if (
+			merchant &&
+			merchant !== description &&
+			!merchant.includes("STORE") &&
+			!merchant.match(/^\d+$/)
+		) {
+			switch (category.toLowerCase()) {
+				case "food & dining":
+					return `Purchase at ${merchant}`;
+				case "transportation":
+					if (merchant.toLowerCase().includes("uber")) {
+						return "Uber ride";
+					} else if (merchant.toLowerCase().includes("lyft")) {
+						return "Lyft ride";
+					} else {
+						return `Transportation via ${merchant}`;
+					}
+				case "shopping":
+					return `Shopping at ${merchant}`;
+				default:
+					return `Purchase at ${merchant}`;
+			}
+		}
 
-			const lowerDesc = description.toLowerCase();
-			let suggestedCategory = "Other";
+		// Handle AI-generated descriptions
+		if (
+			description &&
+			(description.includes(" items at ") || description.includes(" item at "))
+		) {
+			const parts = description.split(" at ");
+			if (parts.length === 2) {
+				const store = parts[1].trim();
+				const lowerStore = store.toLowerCase();
 
-			for (const [category, words] of Object.entries(keywords)) {
-				if (words.some(word => lowerDesc.includes(word))) {
-					suggestedCategory = category;
-					break;
+				// Handle specific services first
+				if (lowerStore.includes("uber")) {
+					return lowerStore.includes("eats")
+						? "Food delivery from Uber Eats"
+						: "Uber ride";
+				} else if (lowerStore.includes("lyft")) {
+					return "Lyft ride";
+				}
+
+				// Handle generic store IDs
+				if (store.includes("STORE") || store.match(/^\d+$/)) {
+					switch (category?.toLowerCase()) {
+						case "food & dining":
+							return "Grocery shopping";
+						case "transportation":
+							return "Transportation expense";
+						case "shopping":
+							return "Shopping purchase";
+						default:
+							return "Purchase";
+					}
+				}
+
+				// Use actual store name
+				const actualStore =
+					merchant && !merchant.includes("STORE") && !merchant.match(/^\d+$/)
+						? merchant
+						: store;
+
+				switch (category?.toLowerCase()) {
+					case "food & dining":
+						return `Grocery shopping at ${actualStore}`;
+					case "transportation":
+						return `Transportation via ${actualStore}`;
+					case "shopping":
+						return `Shopping at ${actualStore}`;
+					default:
+						return `Purchase at ${actualStore}`;
 				}
 			}
-
-			if (suggestedCategory !== "Other") {
-				setFormData((prev) => ({
-					...prev,
-					category: suggestedCategory,
-				}));
-			}
-		} catch (error) {
-			console.error("Failed to get category suggestion:", error);
-		} finally {
-			setIsGettingSuggestion(false);
 		}
+
+		return description || "Expense";
 	};
 
-	// Delete functionality disabled for now - focusing on creation and tracking
-
 	return (
-		<MainLayout>
-			<div className="space-y-6">
-				{/* Header */}
-				<div className="flex items-center justify-between">
-					<div>
-						<h1 className="text-2xl font-bold text-gray-900 flex items-center">
-							<DollarSign className="h-8 w-8 mr-3 text-green-600" />
-							Expenses
-						</h1>
-						<p className="text-gray-600 mt-1">Track and manage your expenses</p>
-					</div>
-					<button
-						onClick={() => setShowReceiptUpload(true)}
-						className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-					>
-						<Upload className="h-4 w-4 mr-2" />
-						Upload Receipt
-					</button>
-				</div>
+		<div className="space-y-6">
+			<div className="border-b border-gray-200 pb-5">
+				<h3 className="text-lg font-medium leading-6 text-gray-900">
+					Expenses
+				</h3>
+				<p className="mt-2 max-w-4xl text-sm text-gray-500">
+					Track and manage your expenses with smart categorization.
+				</p>
+			</div>
 
-				{/* Add New Expense Form */}
-				<div className="bg-white shadow rounded-lg border">
-					<div className="px-6 py-4 border-b border-gray-200">
-						<div className="flex items-center">
-							<div className="p-2 bg-blue-100 rounded-lg mr-3">
-								<Plus className="h-5 w-5 text-blue-600" />
-							</div>
-							<h3 className="text-lg font-medium text-gray-900">Add New Expense</h3>
-						</div>
+			{/* Add New Expense Form */}
+			<div className="bg-white shadow rounded-lg">
+				<div className="px-4 py-5 sm:p-6">
+					<div className="flex items-center justify-between mb-4">
+						<h4 className="text-lg font-medium text-gray-900">
+							Add New Expense
+						</h4>
+						<button
+							onClick={() => setShowReceiptUpload(true)}
+							className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+						>
+							<Camera className="h-4 w-4" />
+							<span>Scan Receipt</span>
+						</button>
 					</div>
-					<div className="p-6">
-						<form onSubmit={handleSubmit}>
-							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Description *
-									</label>
-									<input
-										type="text"
-										name="description"
-										value={formData.description}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-										placeholder="Enter expense description"
-										required
-									/>
-								</div>
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Amount *
-									</label>
-									<input
-										type="number"
-										name="amount"
-										value={formData.amount}
-										onChange={handleChange}
-										step="0.01"
-										min="0"
-										className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-										placeholder="0.00"
-										required
-									/>
-								</div>
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Category
-									</label>
-									<select
-										name="category"
-										value={formData.category}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-									>
-										<option value="Food & Dining">Food & Dining</option>
-										<option value="Transportation">Transportation</option>
-										<option value="Shopping">Shopping</option>
-										<option value="Entertainment">Entertainment</option>
-										<option value="Utilities">Utilities</option>
-										<option value="Healthcare">Healthcare</option>
-										<option value="Education">Education</option>
-										<option value="Other">Other</option>
-									</select>
-								</div>
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Date
-									</label>
-									<input
-										type="date"
-										name="date"
-										value={formData.date}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-									/>
-								</div>
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Payment Method
-									</label>
-									<select
-										name="payment_method"
-										value={formData.payment_method}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-									>
-										<option value="credit_card">Credit Card</option>
-										<option value="debit_card">Debit Card</option>
-										<option value="cash">Cash</option>
-										<option value="bank_transfer">Bank Transfer</option>
-										<option value="digital_wallet">Digital Wallet</option>
-										<option value="other">Other</option>
-									</select>
-								</div>
-								<div>
-									<label className="block text-sm font-medium text-gray-700 mb-1">
-										Notes
-									</label>
-									<input
-										type="text"
-										name="notes"
-										value={formData.notes}
-										onChange={handleChange}
-										className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-										placeholder="Optional notes"
-									/>
-								</div>
+					<form onSubmit={handleSubmit}>
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+							<div>
+								<label className="block text-sm font-medium text-gray-700">
+									Description *
+								</label>
+								<input
+									type="text"
+									name="description"
+									value={formData.description}
+									onChange={handleChange}
+									className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+									placeholder="Enter expense description"
+									required
+								/>
 							</div>
-							<div className="mt-6">
-								<button
-									type="submit"
-									disabled={isSubmitting}
-									className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+							<div>
+								<label className="block text-sm font-medium text-gray-700">
+									Amount *
+								</label>
+								<input
+									type="number"
+									name="amount"
+									value={formData.amount}
+									onChange={handleChange}
+									step="0.01"
+									min="0"
+									className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+									placeholder="0.00"
+									required
+								/>
+							</div>
+							<div>
+								<label className="block text-sm font-medium text-gray-700">
+									<div className="flex items-center space-x-2">
+										<span>Category</span>
+										{isGettingSuggestion && (
+											<Sparkles className="h-4 w-4 text-blue-500 animate-pulse" />
+										)}
+									</div>
+								</label>
+								<select
+									name="category"
+									value={formData.category}
+									onChange={handleChange}
+									className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
 								>
-									{isSubmitting ? (
-										<>
-											<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-											Adding...
-										</>
-									) : (
-										<>
-											<Plus className="h-4 w-4 mr-2" />
-											Add Expense
-										</>
-									)}
-								</button>
+									<option value="Food & Dining">Food & Dining</option>
+									<option value="Transportation">Transportation</option>
+									<option value="Shopping">Shopping</option>
+									<option value="Entertainment">Entertainment</option>
+									<option value="Utilities">Utilities</option>
+									<option value="Healthcare">Healthcare</option>
+									<option value="Education">Education</option>
+									<option value="Other">Other</option>
+								</select>
 							</div>
-						</form>
-					</div>
-				</div>
-
-				{/* Receipt Upload Info */}
-				<div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-					<div className="flex items-start">
-						<Receipt className="h-5 w-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
-						<div>
-							<h4 className="text-sm font-medium text-blue-800">AI-Powered Receipt Processing</h4>
-							<p className="text-sm text-blue-700 mt-1">
-								Upload receipt images and our AI will automatically extract merchant, amount, date, and category.
-								High-confidence results create expenses automatically, others require quick review.
-							</p>
+							<div>
+								<label className="block text-sm font-medium text-gray-700">
+									Date
+								</label>
+								<input
+									type="date"
+									name="date"
+									value={formData.date}
+									onChange={handleChange}
+									className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+								/>
+							</div>
+							<div>
+								<label className="block text-sm font-medium text-gray-700">
+									Payment Method
+								</label>
+								<select
+									name="payment_method"
+									value={formData.payment_method}
+									onChange={handleChange}
+									className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+								>
+									<option value="credit_card">Credit Card</option>
+									<option value="debit_card">Debit Card</option>
+									<option value="cash">Cash</option>
+									<option value="bank_transfer">Bank Transfer</option>
+									<option value="digital_wallet">Digital Wallet</option>
+									<option value="other">Other</option>
+								</select>
+							</div>
+							<div>
+								<label className="block text-sm font-medium text-gray-700">
+									Notes
+								</label>
+								<input
+									type="text"
+									name="notes"
+									value={formData.notes}
+									onChange={handleChange}
+									className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+									placeholder="Optional notes"
+								/>
+							</div>
 						</div>
-					</div>
-				</div>
-
-				{/* Expenses List */}
-				<div className="bg-white shadow rounded-lg border">
-					<div className="px-6 py-4 border-b border-gray-200">
-						<div className="flex items-center">
-							<div className="p-2 bg-green-100 rounded-lg mr-3">
-								<DollarSign className="h-5 w-5 text-green-600" />
-							</div>
-							<h3 className="text-lg font-medium text-gray-900">Recent Expenses</h3>
+						<div className="mt-4">
+							<button
+								type="submit"
+								disabled={isSubmitting}
+								className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								{isSubmitting ? "Adding..." : "Add Expense"}
+							</button>
 						</div>
-					</div>
-					<div className="p-6">
-						{isLoading ? (
-							<div className="text-center py-8">
-								<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-								<p className="mt-2 text-gray-500">Loading expenses...</p>
-							</div>
-						) : expenses.length === 0 ? (
-							<div className="text-center py-8">
-								<DollarSign className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-								<p className="text-gray-500">No expenses recorded yet.</p>
-								<p className="text-sm text-gray-400 mt-1">Add your first expense using the form above.</p>
-							</div>
-						) : (
-							<div className="space-y-3">
-								{expenses.map((expense) => (
-									<div
-										key={expense.id}
-										className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-									>
-										<div className="flex items-center justify-between">
-											<div className="flex-1">
-												<div className="flex items-center space-x-3">
-													<div className="flex-shrink-0">
-														<div className="p-2 bg-green-100 rounded-full">
-															<DollarSign className="h-4 w-4 text-green-600" />
-														</div>
+					</form>
+				</div>
+			</div>
+
+			{/* Expenses List */}
+			<div className="bg-white shadow rounded-lg">
+				<div className="px-4 py-5 sm:p-6">
+					<h4 className="text-lg font-medium text-gray-900 mb-4">
+						Recent Expenses
+					</h4>
+
+					{isLoading ? (
+						<div className="text-center py-4">
+							<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+							<p className="mt-2 text-gray-500">Loading expenses...</p>
+						</div>
+					) : expenses.length === 0 ? (
+						<p className="text-gray-500 text-center py-8">
+							No expenses recorded yet.
+						</p>
+					) : (
+						<div className="space-y-3">
+							{expenses.map((expense) => (
+								<div
+									key={expense.id}
+									className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+								>
+									<div className="flex items-center justify-between">
+										<div className="flex-1">
+											<div className="flex items-center space-x-3">
+												<div className="flex-shrink-0">
+													<DollarSign className="h-5 w-5 text-green-500" />
+												</div>
+												<div>
+													<h5 className="text-sm font-medium text-gray-900">
+														{formatExpenseDescription(expense)}
+													</h5>
+													<div className="flex items-center space-x-4 text-xs text-gray-500">
+														<span className="flex items-center">
+															<Calendar className="h-3 w-3 mr-1" />
+															{formatDate(expense.date)}
+														</span>
+														<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+															{expense.category}
+														</span>
+														<span className="capitalize">
+															{expense.payment_method?.replace("_", " ")}
+														</span>
 													</div>
-													<div>
-														<h5 className="text-sm font-medium text-gray-900">
-															{formatExpenseDescription(expense)}
-														</h5>
-														<div className="flex items-center space-x-4 text-xs text-gray-500 mt-1">
-															<span className="flex items-center">
-																<Calendar className="h-3 w-3 mr-1" />
-																{formatDate(expense.date)}
-															</span>
-															<span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
-																{expense.category}
-															</span>
-															<span className="capitalize">
-																{expense.payment_method?.replace("_", " ")}
-															</span>
-														</div>
-														{expense.notes && (
-															<p className="text-xs text-gray-600 mt-1">
-																{expense.notes}
-															</p>
-														)}
-													</div>
+													{expense.notes && (
+														<p className="text-xs text-gray-600 mt-1">
+															{expense.notes}
+														</p>
+													)}
 												</div>
 											</div>
-											<div className="flex items-center space-x-3">
-												<span className="text-lg font-semibold text-gray-900">
-													{formatCurrency(expense.amount)}
-												</span>
-											</div>
+										</div>
+										<div className="flex items-center space-x-3">
+											<span className="text-lg font-semibold text-gray-900">
+												{formatCurrency(expense.amount)}
+											</span>
+											<button
+												onClick={() => handleDelete(expense.id)}
+												className="text-red-600 hover:text-red-800 p-1"
+												title="Delete expense"
+											>
+												<Trash2 className="h-4 w-4" />
+											</button>
 										</div>
 									</div>
-								))}
-							</div>
-						)}
-					</div>
+								</div>
+							))}
+						</div>
+					)}
 				</div>
-
-				{/* Receipt Upload Modal */}
-				{showReceiptUpload && (
-					<ReceiptUpload
-						onClose={() => setShowReceiptUpload(false)}
-						onExpenseCreated={handleExpenseCreated}
-						onReceiptProcessed={handleReceiptProcessed}
-					/>
-				)}
 			</div>
-		</MainLayout>
+
+			{/* Receipt Upload Modal */}
+			{showReceiptUpload && (
+				<ReceiptUpload
+					onClose={() => setShowReceiptUpload(false)}
+					onExpenseCreated={(expense) => {
+						setShowReceiptUpload(false);
+						fetchExpenses(); // Refresh the list
+					}}
+				/>
+			)}
+		</div>
 	);
 };
 
