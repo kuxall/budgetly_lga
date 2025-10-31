@@ -23,6 +23,8 @@ const getAuthHeaders = () => {
 	};
 };
 
+
+
 export const setAuthToken = (token) => {
 	console.log('Setting auth token:', token ? 'Token set' : 'Token cleared');
 	authToken = token;
@@ -35,6 +37,98 @@ const handleResponse = async (response) => {
 	}
 	return response.json();
 };
+
+
+// Settings API
+export const settingsApi = {
+	getSettings: async () => {
+		const response = await fetch(`${API_BASE_URL}/settings`, {
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+
+	updateProfile: async (profileData) => {
+		const response = await fetch(`${API_BASE_URL}/settings/profile`, {
+			method: 'PUT',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(profileData),
+		});
+		return handleResponse(response);
+	},
+
+	updatePreferences: async (preferences) => {
+		const response = await fetch(`${API_BASE_URL}/settings/preferences`, {
+			method: 'PUT',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(preferences),
+		});
+		return handleResponse(response);
+	},
+
+	updateNotifications: async (notifications) => {
+		const response = await fetch(`${API_BASE_URL}/settings/notifications`, {
+			method: 'PUT',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(notifications),
+		});
+		return handleResponse(response);
+	},
+
+	updateReceiptSettings: async (receiptSettings) => {
+		const response = await fetch(`${API_BASE_URL}/settings/receipts`, {
+			method: 'PUT',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(receiptSettings),
+		});
+		return handleResponse(response);
+	},
+
+	updateSecuritySettings: async (securitySettings) => {
+		const response = await fetch(`${API_BASE_URL}/settings/security`, {
+			method: 'PUT',
+			headers: getAuthHeaders(),
+			body: JSON.stringify(securitySettings),
+		});
+		return handleResponse(response);
+	},
+
+	changePassword: async (currentPassword, newPassword) => {
+		const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+			method: 'POST',
+			headers: getAuthHeaders(),
+			body: JSON.stringify({
+				currentPassword,
+				newPassword
+			}),
+		});
+		return handleResponse(response);
+	},
+
+	getStatistics: async () => {
+		const response = await fetch(`${API_BASE_URL}/settings/statistics`, {
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+
+	exportData: async () => {
+		const response = await fetch(`${API_BASE_URL}/settings/export-data`, {
+			method: 'POST',
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+
+	deleteAccount: async () => {
+		const response = await fetch(`${API_BASE_URL}/settings/delete-account`, {
+			method: 'DELETE',
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+};
+
 
 // Auth API
 export const authApi = {
