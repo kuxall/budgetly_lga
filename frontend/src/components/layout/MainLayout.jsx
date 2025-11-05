@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Wallet, Home, DollarSign, CreditCard, Target, Receipt, LogOut } from "lucide-react";
+import { Wallet, Home, DollarSign, CreditCard, Target, Receipt, LogOut, Brain } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 
 const MainLayout = ({ children }) => {
@@ -13,6 +13,7 @@ const MainLayout = ({ children }) => {
 		{ name: "Expenses", href: "/expenses", icon: CreditCard },
 		{ name: "Receipts", href: "/receipts", icon: Receipt },
 		{ name: "Budget", href: "/budget", icon: Target },
+		{ name: "AI Insights", href: "/ai-insights", icon: Brain },
 		{ name: "Settings", href: "/settings", icon: Target },
 	];
 
