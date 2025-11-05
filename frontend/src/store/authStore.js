@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { authApi, setAuthToken } from '../services/api';
+import { setAIInsightsAuthToken } from '../services/aiInsightsService';
 import toast from 'react-hot-toast';
 
 // Helper functions for localStorage
@@ -33,15 +34,11 @@ const setStoredAuth = (token, user) => {
 
 // Initialize with stored auth data
 const storedAuth = getStoredAuth();
-console.log('Initializing auth store with stored data:', {
-	hasToken: !!storedAuth.token,
-	hasUser: !!storedAuth.user
-});
 
 // Set the auth token immediately if we have one
 if (storedAuth.token) {
-	console.log('Setting auth token from stored data');
 	setAuthToken(storedAuth.token);
+	setAIInsightsAuthToken(storedAuth.token);
 }
 
 export const useAuthStore = create((set) => ({
@@ -58,6 +55,7 @@ export const useAuthStore = create((set) => ({
 			const token = passwordOrToken;
 
 			setAuthToken(token);
+			setAIInsightsAuthToken(token);
 			setStoredAuth(token, user);
 
 			set({
@@ -79,6 +77,7 @@ export const useAuthStore = create((set) => ({
 
 				// Complete login
 				setAuthToken(response.tokens.access_token);
+				setAIInsightsAuthToken(response.tokens.access_token);
 				setStoredAuth(response.tokens.access_token, response.user);
 
 				set({
@@ -100,6 +99,7 @@ export const useAuthStore = create((set) => ({
 
 	logout: () => {
 		setAuthToken(null);
+		setAIInsightsAuthToken(null);
 		setStoredAuth(null, null);
 
 		set({
@@ -116,6 +116,7 @@ export const useAuthStore = create((set) => ({
 			const response = await authApi.register(email, password, firstName, lastName);
 
 			setAuthToken(response.tokens.access_token);
+			setAIInsightsAuthToken(response.tokens.access_token);
 			setStoredAuth(response.tokens.access_token, response.user);
 
 			set({
@@ -139,6 +140,7 @@ export const useAuthStore = create((set) => ({
 		if (token && user) {
 			try {
 				setAuthToken(token);
+				setAIInsightsAuthToken(token);
 				set({
 					user,
 					token,
@@ -169,6 +171,7 @@ export const useAuthStore = create((set) => ({
 
 		if (token && user) {
 			setAuthToken(token);
+			setAIInsightsAuthToken(token);
 			set({
 				user,
 				token,
