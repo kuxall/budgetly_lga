@@ -509,25 +509,23 @@ const Settings = () => {
 												<div className="flex items-center space-x-2">
 													<div className="flex-1 bg-gray-200 rounded-full h-2">
 														<div
-															className={`h-2 rounded-full transition-all duration-300 ${
-																passwordStrength === 1
+															className={`h-2 rounded-full transition-all duration-300 ${passwordStrength === 1
 																	? "bg-red-500 w-1/5"
 																	: passwordStrength === 2
-																	? "bg-orange-500 w-2/5"
-																	: passwordStrength === 3
-																	? "bg-yellow-500 w-3/5"
-																	: passwordStrength === 4
-																	? "bg-blue-500 w-4/5"
-																	: passwordStrength === 5
-																	? "bg-green-500 w-full"
-																	: "w-0"
-															}`}
+																		? "bg-orange-500 w-2/5"
+																		: passwordStrength === 3
+																			? "bg-yellow-500 w-3/5"
+																			: passwordStrength === 4
+																				? "bg-blue-500 w-4/5"
+																				: passwordStrength === 5
+																					? "bg-green-500 w-full"
+																					: "w-0"
+																}`}
 														></div>
 													</div>
 													<span
-														className={`text-xs font-medium ${
-															getPasswordStrengthText(passwordStrength).color
-														}`}
+														className={`text-xs font-medium ${getPasswordStrengthText(passwordStrength).color
+															}`}
 													>
 														{getPasswordStrengthText(passwordStrength).text}
 													</span>
@@ -1176,50 +1174,48 @@ const Settings = () => {
 	return (
 		<MainLayout>
 			<div className="space-y-6">
-					<div className="border-b border-gray-200 pb-4 mb-6">
-						<h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-						<p className="mt-2 text-sm text-gray-600">
-							Manage your account settings and preferences.
-						</p>
-					</div>
+				<div className="border-b border-gray-200 pb-4 mb-6">
+					<h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+					<p className="mt-2 text-sm text-gray-600">
+						Manage your account settings and preferences.
+					</p>
+				</div>
 
-					<div className="lg:grid lg:grid-cols-12 lg:gap-x-5">
-						{/* Sidebar */}
-						<aside className="py-6 px-2 sm:px-6 lg:py-0 lg:px-0 lg:col-span-3">
-							<nav className="space-y-1">
-								{tabs.map((tab) => {
-									const Icon = tab.icon;
-									return (
-										<button
-											key={tab.id}
-											onClick={() => setActiveTab(tab.id)}
-											className={`${
-												activeTab === tab.id
-													? "bg-blue-50 border-blue-500 text-blue-700"
-													: "border-transparent text-gray-900 hover:bg-gray-50 hover:text-gray-900"
+				<div className="lg:grid lg:grid-cols-12 lg:gap-x-5">
+					{/* Sidebar */}
+					<aside className="py-6 px-2 sm:px-6 lg:py-0 lg:px-0 lg:col-span-3">
+						<nav className="space-y-1">
+							{tabs.map((tab) => {
+								const Icon = tab.icon;
+								return (
+									<button
+										key={tab.id}
+										onClick={() => setActiveTab(tab.id)}
+										className={`${activeTab === tab.id
+												? "bg-blue-50 border-blue-500 text-blue-700"
+												: "border-transparent text-gray-900 hover:bg-gray-50 hover:text-gray-900"
 											} group border-l-4 px-3 py-2 flex items-center text-sm font-medium w-full text-left`}
-										>
-											<Icon
-												className={`${
-													activeTab === tab.id
-														? "text-blue-500"
-														: "text-gray-400 group-hover:text-gray-500"
+									>
+										<Icon
+											className={`${activeTab === tab.id
+													? "text-blue-500"
+													: "text-gray-400 group-hover:text-gray-500"
 												} flex-shrink-0 -ml-1 mr-3 h-6 w-6`}
-											/>
-											<span className="truncate">{tab.name}</span>
-										</button>
-									);
-								})}
-							</nav>
-						</aside>
+										/>
+										<span className="truncate">{tab.name}</span>
+									</button>
+								);
+							})}
+						</nav>
+					</aside>
 
-						{/* Main content */}
-						<div className="space-y-6 sm:px-6 lg:px-0 lg:col-span-9">
-							{renderTabContent()}
-						</div>
+					{/* Main content */}
+					<div className="space-y-6 sm:px-6 lg:px-0 lg:col-span-9">
+						{renderTabContent()}
 					</div>
 				</div>
-	</MainLayout>
+			</div>
+		</MainLayout>
 	);
 };
 

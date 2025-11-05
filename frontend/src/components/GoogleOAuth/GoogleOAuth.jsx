@@ -38,7 +38,6 @@ const GoogleOAuth = ({ onSuccess, onError, className = "" }) => {
 				}
 			});
 		} catch (error) {
-			console.error("Google OAuth initialization error:", error);
 			toast.error("Failed to initialize Google Sign-In");
 			setLoading(false);
 			if (onError) onError(error);
@@ -75,7 +74,6 @@ const GoogleOAuth = ({ onSuccess, onError, className = "" }) => {
 				throw new Error(result.message || "Google login failed");
 			}
 		} catch (error) {
-			console.error("Google OAuth error:", error);
 			toast.error(error.message || "Google sign-in failed");
 			if (onError) onError(error);
 		} finally {
@@ -95,13 +93,12 @@ const GoogleOAuth = ({ onSuccess, onError, className = "" }) => {
 			);
 			return JSON.parse(jsonPayload);
 		} catch (error) {
-			console.error("Error parsing JWT:", error);
 			return {};
 		}
 	};
 
 	return (
-		<div className={google-oauth-container ${className}}>
+		<div className={`google-oauth-container ${className}`}>
 			<button
 				onClick={handleGoogleLogin}
 				disabled={loading}
@@ -136,9 +133,9 @@ const GoogleOAuth = ({ onSuccess, onError, className = "" }) => {
 					</div>
 				)}
 			</button>
-			{/* Hidden button for Google's renderButton fallback */}
-			<div id="google-signin-button" className="hidden"></div>
-		</div>
+{/* Hidden button for Google's renderButton fallback */ }
+<div id="google-signin-button" className="hidden"></div>
+		</div >
 	);
 };
 
