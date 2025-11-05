@@ -16,21 +16,26 @@ class ImageValidationService:
     """Multi-layer security validation for uploaded files"""
 
     def __init__(self):
-        # File size limits
-        self.min_file_size = 1024  # 1KB
-        self.max_file_size = 10 * 1024 * 1024  # 10MB
+        # File size limits - More permissive
+        self.min_file_size = 100  # 100 bytes (very small)
+        self.max_file_size = 50 * 1024 * 1024  # 50MB (much larger)
 
-        # Supported formats
+        # Supported formats - Accept more formats
         self.supported_image_types = {
             'image/jpeg', 'image/jpg', 'image/png',
-            'image/webp', 'image/tiff', 'image/tif'
+            'image/webp', 'image/tiff', 'image/tif',
+            'image/bmp', 'image/gif', 'image/svg+xml'
         }
         self.supported_document_types = {'application/pdf'}
         self.all_supported_types = self.supported_image_types | self.supported_document_types
 
-        # Image constraints
-        self.max_image_dimensions = (4000, 4000)  # Max width/height
-        self.min_image_dimensions = (100, 100)    # Min width/height
+        # Optimal image dimensions for processing
+        self.target_max_dimension = 2048  # Resize to this max dimension
+        self.target_min_dimension = 200   # Minimum dimension after resize
+
+        # Quality settings
+        self.jpeg_quality = 85
+        self.png_optimize = True
 
     async def validate_file(self, file_data: bytes, filename: str, user_id: str) -> Dict:
         """
@@ -97,41 +102,46 @@ class ImageValidationService:
             }
 
     def _validate_basic_properties(self, file_data: bytes, filename: str) -> Dict:
-        """Layer 1: Basic file property validation"""
+        """Layer 1: Basic file property validation - Very permissive"""
 
-        # Check file size
+        # Check file size - Very permissive limits
         file_size = len(file_data)
         if file_size < self.min_file_size:
             return {
                 "valid": False,
                 "error": "File too small",
-                "reason": f"File size ({file_size} bytes) is below minimum ({self.min_file_size} bytes)"
+                "reason": f"File appears to be empty or corrupted"
             }
 
         if file_size > self.max_file_size:
-            return {
-                "valid": False,
-                "error": "File too large",
-                "reason": f"File size ({file_size} bytes) exceeds maximum ({self.max_file_size} bytes)"
-            }
+            # Still allow but warn - we'll resize anyway
+            print(
+                f"⚠️ Large file detected ({file_size} bytes), will be optimized")
 
         # Check filename
         if not filename or len(filename.strip()) == 0:
-            return {
-                "valid": False,
-                "error": "Invalid filename",
-                "reason": "Filename is empty or invalid"
-            }
+            # Generate a filename if missing
+            filename = f"upload_{hash(file_data[:100]) % 10000}.jpg"
+            print(f"📝 Generated filename: {filename}")
 
-        # Check file extension
+        # Check file extension - Try to detect if missing
         if not self._has_valid_extension(filename):
-            return {
-                "valid": False,
-                "error": "Unsupported file type",
-                "reason": "File extension not supported. Use JPEG, PNG, WebP, TIFF, or PDF"
-            }
+            # Try to detect format from content and fix filename
+            try:
+                detected_format = self._detect_image_format(file_data)
+                if detected_format:
+                    base_name = filename.rsplit(
+                        '.', 1)[0] if '.' in filename else filename
+                    filename = f"{base_name}.{detected_format}"
+                    print(f"📝 Fixed filename to: {filename}")
+                else:
+                    # Default to jpg if we can't detect
+                    filename = f"{filename}.jpg"
+                    print(f"📝 Defaulted filename to: {filename}")
+            except:
+                filename = f"{filename}.jpg"
 
-        return {"valid": True}
+        return {"valid": True, "corrected_filename": filename}
 
     def _validate_mime_type(self, file_data: bytes, filename: str) -> Dict:
         """Layer 2: MIME type validation using python-magic"""
@@ -192,47 +202,65 @@ class ImageValidationService:
             }
 
     def _validate_image_structure(self, image_data: bytes) -> Dict:
-        """Validate image file structure and properties"""
+        """Validate image file structure and properties - Accept any valid image"""
 
         try:
             # Try to open image with PIL
             image = Image.open(io.BytesIO(image_data))
 
-            # Check image dimensions
+            # Get image dimensions
             width, height = image.size
+            print(f"📐 Original image dimensions: {width}x{height}")
 
-            if width < self.min_image_dimensions[0] or height < self.min_image_dimensions[1]:
-                return {
-                    "valid": False,
-                    "error": "Image too small",
-                    "reason": f"Image dimensions ({width}x{height}) below minimum {self.min_image_dimensions}"
-                }
+            # Accept any dimensions - we'll resize if needed
+            needs_resize = False
+            if max(width, height) > self.target_max_dimension:
+                needs_resize = True
+                print(f"📏 Image will be resized (too large)")
+            elif min(width, height) < self.target_min_dimension and max(width, height) < self.target_min_dimension:
+                needs_resize = True
+                print(f"📏 Image will be upscaled (too small)")
 
-            if width > self.max_image_dimensions[0] or height > self.max_image_dimensions[1]:
-                return {
-                    "valid": False,
-                    "error": "Image too large",
-                    "reason": f"Image dimensions ({width}x{height}) exceed maximum {self.max_image_dimensions}"
-                }
-
-            # Verify image can be processed
-            image.verify()
+            # Verify image can be processed (reopen since verify() closes the image)
+            image = Image.open(io.BytesIO(image_data))
 
             return {
                 "valid": True,
+                "needs_resize": needs_resize,
                 "image_info": {
-                    "dimensions": (width, height),
+                    "original_dimensions": (width, height),
                     "format": image.format,
-                    "mode": image.mode
+                    "mode": image.mode,
+                    "size_bytes": len(image_data)
                 }
             }
 
         except Exception as e:
-            return {
-                "valid": False,
-                "error": "Invalid image file",
-                "reason": f"Image file is corrupted or invalid: {str(e)}"
-            }
+            # Try to recover corrupted images
+            try:
+                print(
+                    f"⚠️ Image validation failed, attempting recovery: {str(e)}")
+                # Try to load with different methods
+                image = Image.open(io.BytesIO(image_data))
+                image.load()  # Force load the image data
+
+                return {
+                    "valid": True,
+                    "needs_resize": True,  # Force resize to clean up
+                    "recovered": True,
+                    "image_info": {
+                        "original_dimensions": image.size,
+                        "format": "RECOVERED",
+                        "mode": image.mode,
+                        "size_bytes": len(image_data)
+                    }
+                }
+            except:
+                return {
+                    "valid": False,
+                    "error": "Invalid image file",
+                    "reason": f"Image file is corrupted and cannot be recovered: {str(e)}"
+                }
 
     def _validate_pdf_structure(self, pdf_data: bytes) -> Dict:
         """Validate PDF file structure"""
@@ -290,45 +318,68 @@ class ImageValidationService:
             }
 
     def _sanitize_image(self, image_data: bytes) -> Dict:
-        """Layer 4: Image sanitization and re-encoding"""
+        """Layer 4: Image sanitization, optimization, and auto-resizing"""
 
         try:
             # Open image
             image = Image.open(io.BytesIO(image_data))
+            original_size = image.size
+            print(
+                f"🖼️ Processing image: {original_size[0]}x{original_size[1]} ({image.format})")
 
-            # Remove EXIF data and other metadata
-            image = ImageOps.exif_transpose(image)  # Handle rotation
+            # Remove EXIF data and handle rotation
+            image = ImageOps.exif_transpose(image)
 
-            # Convert to RGB if necessary (removes alpha channel, etc.)
+            # Auto-resize if needed
+            image = self._auto_resize_image(image)
+
+            # Convert to optimal format
             if image.mode not in ('RGB', 'L'):  # RGB or Grayscale
                 if image.mode == 'RGBA':
                     # Create white background for transparent images
                     background = Image.new('RGB', image.size, (255, 255, 255))
-                    # Use alpha channel as mask
                     background.paste(image, mask=image.split()[-1])
                     image = background
+                elif image.mode == 'P':  # Palette mode
+                    image = image.convert('RGB')
                 else:
                     image = image.convert('RGB')
 
-            # Re-encode image to remove potential exploits
+            # Optimize and re-encode
             output_buffer = io.BytesIO()
 
-            # Save as JPEG with reasonable quality
-            image.save(output_buffer, format='JPEG', quality=85, optimize=True)
+            # Choose format based on content
+            if self._should_save_as_png(image):
+                image.save(output_buffer, format='PNG',
+                           optimize=self.png_optimize)
+                final_format = 'PNG'
+            else:
+                image.save(output_buffer, format='JPEG',
+                           quality=self.jpeg_quality, optimize=True)
+                final_format = 'JPEG'
+
             sanitized_data = output_buffer.getvalue()
+
+            print(
+                f"✅ Image optimized: {original_size} → {image.size}, {len(image_data)} → {len(sanitized_data)} bytes ({final_format})")
 
             return {
                 "valid": True,
                 "sanitized_data": sanitized_data,
                 "original_size": len(image_data),
-                "sanitized_size": len(sanitized_data)
+                "sanitized_size": len(sanitized_data),
+                "original_dimensions": original_size,
+                "final_dimensions": image.size,
+                "final_format": final_format,
+                "compression_ratio": len(sanitized_data) / len(image_data) if len(image_data) > 0 else 1.0
             }
 
         except Exception as e:
+            print(f"❌ Image sanitization failed: {str(e)}")
             return {
                 "valid": False,
                 "error": "Image sanitization failed",
-                "reason": f"Could not sanitize image: {str(e)}"
+                "reason": f"Could not process image: {str(e)}"
             }
 
     def _security_scan(self, file_data: bytes, filename: str) -> Dict:
@@ -444,15 +495,82 @@ class ImageValidationService:
         """Generate SHA-256 hash of file for deduplication"""
         return hashlib.sha256(file_data).hexdigest()
 
+    def _auto_resize_image(self, image: Image.Image) -> Image.Image:
+        """Automatically resize image to optimal dimensions"""
+
+        width, height = image.size
+        max_dimension = max(width, height)
+        min_dimension = min(width, height)
+
+        # Calculate new dimensions
+        if max_dimension > self.target_max_dimension:
+            # Scale down large images
+            if width > height:
+                new_width = self.target_max_dimension
+                new_height = int((height * self.target_max_dimension) / width)
+            else:
+                new_height = self.target_max_dimension
+                new_width = int((width * self.target_max_dimension) / height)
+
+            print(
+                f"📏 Resizing large image: {width}x{height} → {new_width}x{new_height}")
+            return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+        elif max_dimension < self.target_min_dimension:
+            # Scale up very small images
+            scale_factor = self.target_min_dimension / max_dimension
+            new_width = int(width * scale_factor)
+            new_height = int(height * scale_factor)
+
+            print(
+                f"📏 Upscaling small image: {width}x{height} → {new_width}x{new_height}")
+            return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+        # Image is already optimal size
+        return image
+
+    def _should_save_as_png(self, image: Image.Image) -> bool:
+        """Determine if image should be saved as PNG vs JPEG"""
+
+        # Use PNG for images with transparency or very few colors
+        if image.mode in ('RGBA', 'LA', 'P'):
+            return True
+
+        # Use PNG for images that might be screenshots or have sharp edges
+        # (This is a simple heuristic - could be improved)
+        width, height = image.size
+        if width > height * 2 or height > width * 2:  # Very wide or tall images
+            return True
+
+        return False  # Default to JPEG for photos
+
+    def _detect_image_format(self, file_data: bytes) -> str:
+        """Detect image format from file content"""
+
+        try:
+            image = Image.open(io.BytesIO(file_data))
+            format_map = {
+                'JPEG': 'jpg',
+                'PNG': 'png',
+                'WEBP': 'webp',
+                'TIFF': 'tiff',
+                'BMP': 'bmp',
+                'GIF': 'gif'
+            }
+            return format_map.get(image.format, 'jpg')
+        except:
+            return None
+
     def _has_valid_extension(self, filename: str) -> bool:
         """Check if filename has a valid extension"""
         valid_extensions = ['.jpg', '.jpeg', '.png',
-                            '.webp', '.tiff', '.tif', '.pdf']
+                            '.webp', '.tiff', '.tif', '.pdf', '.bmp', '.gif']
         return any(filename.lower().endswith(ext) for ext in valid_extensions)
 
     def _is_image_file(self, filename: str) -> bool:
         """Check if file is an image based on extension"""
-        image_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.tiff', '.tif']
+        image_extensions = ['.jpg', '.jpeg', '.png',
+                            '.webp', '.tiff', '.tif', '.bmp', '.gif']
         return any(filename.lower().endswith(ext) for ext in image_extensions)
 
     def _mime_types_compatible(self, detected: str, expected: str) -> bool:

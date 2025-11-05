@@ -1,10 +1,21 @@
 """Budgetly - AI-Powered Financial Management Platform."""
 
+from services.ai_insights_service import ai_insights_service
+from services.duplicate_detection_service import get_duplicate_detection_service
+from services.image_storage_service import persistent_storage
+from services.image_validation_service import image_validation_service
+from services.real_ocr_service import ocr_service
+from services.settings_service import setting_service, get_settings_service
+from services.email_service import email_service
+from services.data_services import data_service
+from services.model_config_service import model_config
+from services.data_validation_service import data_validation_service
 from fastapi import FastAPI, HTTPException, Request, status, Depends
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
+from collections import defaultdict
 import os
 import jwt
 import secrets
@@ -25,13 +36,6 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Import services
-from services.data_services import data_service
-from services.email_service import email_service
-from services.settings_service import setting_service, get_settings_service
-from services.real_ocr_service import ocr_service
-from services.image_validation_service import image_validation_service
-from services.image_storage_service import persistent_storage
-from services.duplicate_detection_service import get_duplicate_detection_service
 
 app = FastAPI(
     title="Budgetly API",
@@ -612,6 +616,19 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 
+@app.get("/api/v1/config/models")
+async def get_model_config():
+    """Get current AI model configuration."""
+    return {
+        "models": model_config.get_all_models(),
+        "recommendations": model_config.get_feature_recommendations(),
+        "model_info": {
+            model: model_config.get_model_info(model)
+            for model in model_config.get_all_models().values()
+        }
+    }
+
+
 # Income endpoints
 
 
@@ -891,8 +908,10 @@ async def create_budget(request: Request, current_user: Dict = Depends(get_curre
     user_budgets = data_service.get_budgets_by_user(current_user["id"])
     existing_budget = None
     for budget in user_budgets:
-        if (budget["category"] == data["category"] and
-                budget["period"] == data.get("period", "monthly")):
+        if (
+            budget["category"] == data["category"] and
+            budget["period"] == data.get("period", "monthly")
+        ):
             existing_budget = budget
             break
 
@@ -1212,7 +1231,7 @@ async def delete_user_account(current_user: Dict = Depends(get_current_user)):
 async def update_budget(budget_id: str, request: Request, current_user: Dict = Depends(get_current_user)):
     """Update an existing budget."""
     data = await request.json()
-    
+
     # Find the budget that belongs to the user
     user_budget = None
     for budget in data_service.budgets_db:
@@ -1739,3 +1758,592 @@ async def get_receipt_stats(current_user: Dict = Depends(get_current_user)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get receipt stats: {str(e)}"
         )
+
+
+# AI Insights endpoints
+
+@app.get("/api/v1/insights/financial-analysis")
+async def get_financial_insights(current_user: Dict = Depends(get_current_user)):
+    """Generate comprehensive AI-powered financial insights."""
+
+    try:
+        # Get user data from MongoDB
+        expenses = data_service.get_expenses_by_user(current_user["id"])
+        income = data_service.get_income_by_user(current_user["id"])
+        budgets = data_service.get_budgets_by_user(current_user["id"])
+
+        # Check if user has sufficient data
+        if not expenses and not income:
+            return {
+                "success": False,
+                "error": "Insufficient data",
+                "message": "Please add some expenses or income records to generate insights.",
+                "suggestions": [
+                    "Add your recent expenses",
+                    "Record your income sources",
+                    "Set up budgets for key categories"
+                ]
+            }
+
+        # Calculate comprehensive financial metrics
+        metrics = ai_insights_service.calculate_financial_metrics(
+            expenses, income, budgets, current_user["id"]
+        )
+
+        # Prepare AI prompt with calculated data
+        prompt = ai_insights_service.prepare_prompt(metrics)
+
+        # Generate AI insights
+        insights_result = await ai_insights_service.generate_insights(prompt)
+
+        # Add metadata
+        response = {
+            "success": True,
+            "insights": insights_result.get("insights", insights_result.get("fallback_insights")),
+            "metrics": {
+                "total_expenses": metrics["total_expenses"],
+                "total_income": metrics["total_income"],
+                "net_position": metrics["net_income"],
+                "expense_count": metrics["expense_count"],
+                "budget_count": metrics["budget_count"],
+                "data_quality_score": min(100, (metrics["expense_count"] * 10) + (metrics["budget_count"] * 20))
+            },
+            "generated_at": datetime.utcnow().isoformat(),
+            "ai_service_status": "enabled" if ai_insights_service.is_configured else "fallback",
+            "model_used": insights_result.get("model_used", "fallback")
+        }
+
+        # Include raw AI response for debugging if available
+        if "raw_response" in insights_result:
+            response["debug"] = {
+                "raw_ai_response": insights_result["raw_response"],
+                "prompt_used": prompt[:500] + "..." if len(prompt) > 500 else prompt
+            }
+
+        return response
+
+    except Exception as e:
+        logger.error(f"Error generating financial insights: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate financial insights: {str(e)}"
+        )
+
+
+@app.get("/api/v1/insights/spending-summary")
+async def get_spending_summary(current_user: Dict = Depends(get_current_user)):
+    """Get detailed spending summary and metrics."""
+
+    try:
+        # Get user data
+        expenses = data_service.get_expenses_by_user(current_user["id"])
+        income = data_service.get_income_by_user(current_user["id"])
+        budgets = data_service.get_budgets_by_user(current_user["id"])
+
+        # Calculate metrics
+        metrics = ai_insights_service.calculate_financial_metrics(
+            expenses, income, budgets, current_user["id"]
+        )
+
+        # Calculate additional summary metrics
+        current_month = datetime.now().strftime("%Y-%m")
+        current_month_expenses = [
+            exp for exp in expenses
+            if exp.get("date", "").startswith(current_month)
+        ]
+
+        # Budget vs actual analysis
+        budget_analysis = []
+        for budget in budgets:
+            category = budget.get("category", "")
+            budget_amount = budget.get("amount", 0)
+
+            # Calculate actual spending in this category
+            category_expenses = [
+                exp for exp in current_month_expenses
+                if exp.get("category", "") == category
+            ]
+            actual_spent = sum(exp.get("amount", 0)
+                               for exp in category_expenses)
+
+            budget_analysis.append({
+                "category": category,
+                "budgeted": budget_amount,
+                "actual": actual_spent,
+                "remaining": budget_amount - actual_spent,
+                "percentage_used": (actual_spent / budget_amount * 100) if budget_amount > 0 else 0,
+                "status": "over_budget" if actual_spent > budget_amount else "on_track"
+            })
+
+        return {
+            "success": True,
+            "summary": {
+                "total_expenses": metrics["total_expenses"],
+                "total_income": metrics["total_income"],
+                "net_position": metrics["net_income"],
+                "savings_rate": (metrics["net_income"] / metrics["total_income"] * 100) if metrics["total_income"] > 0 else 0,
+                "expense_count": metrics["expense_count"],
+                "average_transaction": metrics["average_transaction"],
+                "consistency_score": metrics["consistency_score"]
+            },
+            "category_breakdown": metrics["category_breakdown"],
+            "budget_analysis": budget_analysis,
+            "trends": {
+                "recent_trend": metrics["recent_trend_description"],
+                "monthly_average": metrics["monthly_average"],
+                "predicted_next_month": metrics["predicted_amount"]
+            },
+            "generated_at": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating spending summary: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate spending summary: {str(e)}"
+        )
+
+
+@app.get("/api/v1/insights/category-analysis")
+async def get_category_analysis(current_user: Dict = Depends(get_current_user)):
+    """Get detailed analysis of spending by category."""
+
+    try:
+        expenses = data_service.get_expenses_by_user(current_user["id"])
+
+        if not expenses:
+            return {
+                "success": False,
+                "error": "No expense data available",
+                "message": "Add some expenses to see category analysis."
+            }
+
+        # Group expenses by category
+        category_data = defaultdict(lambda: {
+            "total": 0,
+            "count": 0,
+            "average": 0,
+            "transactions": []
+        })
+
+        for expense in expenses:
+            category = expense.get("category", "Other")
+            amount = expense.get("amount", 0)
+
+            category_data[category]["total"] += amount
+            category_data[category]["count"] += 1
+            category_data[category]["transactions"].append({
+                "amount": amount,
+                "description": expense.get("description", ""),
+                "date": expense.get("date", "")
+            })
+
+        # Calculate averages and sort by total
+        category_analysis = []
+        total_spending = sum(data["total"] for data in category_data.values())
+
+        for category, data in category_data.items():
+            data["average"] = data["total"] / \
+                data["count"] if data["count"] > 0 else 0
+
+            # Sort transactions by amount (highest first)
+            data["transactions"].sort(key=lambda x: x["amount"], reverse=True)
+
+            category_analysis.append({
+                "category": category,
+                "total": data["total"],
+                "count": data["count"],
+                "average": data["average"],
+                "percentage_of_total": (data["total"] / total_spending * 100) if total_spending > 0 else 0,
+                # Top 5 transactions
+                "top_transactions": data["transactions"][:5]
+            })
+
+        # Sort by total spending
+        category_analysis.sort(key=lambda x: x["total"], reverse=True)
+
+        return {
+            "success": True,
+            "total_spending": total_spending,
+            "category_count": len(category_analysis),
+            "categories": category_analysis,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating category analysis: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate category analysis: {str(e)}"
+        )
+
+
+@app.get("/api/v1/insights/trends")
+async def get_spending_trends(
+    current_user: Dict = Depends(get_current_user),
+    months: int = 6
+):
+    """Get spending trends over time."""
+
+    try:
+        expenses = data_service.get_expenses_by_user(current_user["id"])
+
+        if not expenses:
+            return {
+                "success": False,
+                "error": "No expense data available",
+                "message": "Add some expenses to see spending trends."
+            }
+
+        # Limit months to reasonable range
+        months = max(1, min(months, 24))
+
+        # Calculate date range
+        end_date = datetime.now().date()
+        start_date = end_date.replace(
+            day=1) - timedelta(days=30 * (months - 1))
+
+        # Filter expenses to date range
+        filtered_expenses = [
+            exp for exp in expenses
+            if start_date <= datetime.fromisoformat(exp.get("date", "1970-01-01")).date() <= end_date
+        ]
+
+        # Group by month
+        monthly_data = defaultdict(lambda: {
+            "total": 0,
+            "count": 0,
+            "categories": defaultdict(float)
+        })
+
+        for expense in filtered_expenses:
+            month_key = expense.get("date", "1970-01-01")[:7]  # YYYY-MM
+            amount = expense.get("amount", 0)
+            category = expense.get("category", "Other")
+
+            monthly_data[month_key]["total"] += amount
+            monthly_data[month_key]["count"] += 1
+            monthly_data[month_key]["categories"][category] += amount
+
+        # Convert to sorted list
+        trend_data = []
+        for month in sorted(monthly_data.keys()):
+            data = monthly_data[month]
+
+            # Top categories for this month
+            top_categories = sorted(
+                data["categories"].items(),
+                key=lambda x: x[1],
+                reverse=True
+            )[:3]
+
+            trend_data.append({
+                "month": month,
+                "total": data["total"],
+                "transaction_count": data["count"],
+                "average_transaction": data["total"] / data["count"] if data["count"] > 0 else 0,
+                "top_categories": [{"category": cat, "amount": amt} for cat, amt in top_categories]
+            })
+
+        # Calculate trend metrics
+        if len(trend_data) >= 2:
+            recent_avg = sum(month["total"]
+                             for month in trend_data[-3:]) / min(3, len(trend_data))
+            overall_avg = sum(month["total"]
+                              for month in trend_data) / len(trend_data)
+            trend_direction = "increasing" if recent_avg > overall_avg else "decreasing"
+        else:
+            trend_direction = "stable"
+            recent_avg = trend_data[0]["total"] if trend_data else 0
+            overall_avg = recent_avg
+
+        return {
+            "success": True,
+            "period": {
+                "months": months,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat()
+            },
+            "trend_summary": {
+                "direction": trend_direction,
+                "recent_average": recent_avg,
+                "overall_average": overall_avg,
+                "total_transactions": sum(month["transaction_count"] for month in trend_data)
+            },
+            "monthly_data": trend_data,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating spending trends: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate spending trends: {str(e)}"
+        )
+
+
+@app.get("/api/v1/insights/config")
+async def get_insights_config(current_user: Dict = Depends(get_current_user)):
+    """Get AI insights service configuration and status."""
+
+    return {
+        "success": True,
+        "ai_service": {
+            "enabled": ai_insights_service.is_configured,
+            "provider": "OpenAI" if ai_insights_service.is_configured else None,
+            "model": "gpt-4o-mini" if ai_insights_service.is_configured else None,
+            "status": "ready" if ai_insights_service.is_configured else "not_configured"
+        },
+        "features": {
+            "financial_analysis": True,
+            "spending_summary": True,
+            "category_analysis": True,
+            "trend_analysis": True,
+            "budget_recommendations": ai_insights_service.is_configured,
+            "ai_chat": ai_insights_service.is_configured
+        },
+        "data_requirements": {
+            "minimum_expenses": 1,
+            "recommended_expenses": 10,
+            "minimum_time_period": "1 week",
+            "recommended_time_period": "1 month"
+        }
+    }
+
+
+# AI Chat endpoints
+@app.post("/api/v1/ai/chat")
+async def chat_with_ai(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Savi"""
+    try:
+        body = await request.json()
+        message = body.get("message", "").strip()
+        chat_history = body.get("chat_history", [])
+
+        if not message:
+            raise HTTPException(status_code=400, detail="Message is required")
+
+        # Get user's financial context for personalized advice
+        user_id = current_user["id"]
+
+        # Fetch user's financial data for context
+        expenses = data_service.get_expenses_by_user(user_id)
+        income = data_service.get_income_by_user(user_id)
+        budgets = data_service.get_budgets_by_user(user_id)
+
+        # Fetch receipt data for detailed item-level analysis
+        receipts = persistent_storage.list_user_receipts(user_id)
+
+        # Prepare comprehensive user context with actual data
+        user_context = {}
+
+        if expenses:
+            total_expenses = sum(exp.get('amount', 0) for exp in expenses)
+            user_context['total_expenses'] = total_expenses
+            user_context['expense_count'] = len(expenses)
+
+            # Recent expenses (last 30 days)
+            thirty_days_ago = datetime.now() - timedelta(days=30)
+            recent_expenses = []
+            for exp in expenses:
+                try:
+                    exp_date = datetime.fromisoformat(
+                        exp.get('date', '').replace('Z', '+00:00'))
+                    if exp_date >= thirty_days_ago:
+                        recent_expenses.append(exp)
+                except:
+                    continue
+
+            if recent_expenses:
+                user_context['recent_expenses'] = sum(
+                    exp.get('amount', 0) for exp in recent_expenses)
+                user_context['recent_expense_count'] = len(recent_expenses)
+
+            # Top categories with detailed breakdown
+            category_totals = defaultdict(float)
+            for exp in expenses:
+                category_totals[exp.get(
+                    'category', 'Other')] += exp.get('amount', 0)
+            top_categories = sorted(
+                category_totals.items(), key=lambda x: x[1], reverse=True)[:5]
+            user_context['top_categories'] = top_categories
+
+            # Average transaction
+            user_context['avg_transaction'] = total_expenses / \
+                len(expenses) if expenses else 0
+
+            # Most frequent merchant/description
+            merchants = defaultdict(int)
+            for exp in expenses:
+                merchant = exp.get('description', 'Unknown')[
+                    :30]  # Truncate long descriptions
+                merchants[merchant] += 1
+            if merchants:
+                top_merchant = max(merchants.items(), key=lambda x: x[1])
+                user_context['top_merchant'] = top_merchant[0]
+
+        if income:
+            total_income = sum(inc.get('amount', 0) for inc in income)
+            user_context['total_income'] = total_income
+            user_context['income_count'] = len(income)
+
+        if budgets:
+            user_context['budget_count'] = len(budgets)
+            # Budget vs actual spending analysis
+            if expenses and budgets:
+                budget_analysis = []
+                for budget in budgets:
+                    category = budget.get('category', '')
+                    budget_amount = budget.get('amount', 0)
+                    actual_spent = sum(exp.get('amount', 0) for exp in expenses
+                                       if exp.get('category') == category)
+                    if actual_spent > 0:
+                        over_under = actual_spent - budget_amount
+                        budget_analysis.append({
+                            'category': category,
+                            'budget': budget_amount,
+                            'actual': actual_spent,
+                            'over_under': over_under,
+                            'status': 'over' if over_under > 0 else 'under'
+                        })
+                user_context['budget_analysis'] = budget_analysis
+
+        # Process receipt data for item-level insights
+        if receipts:
+            user_context['receipt_count'] = len(receipts)
+
+            # Extract all items from receipts
+            all_items = []
+            receipt_merchants = defaultdict(int)
+
+            for receipt in receipts:
+                extracted_data = receipt.get('extracted_data', {})
+                if extracted_data.get('items'):
+                    merchant = extracted_data.get('merchant', 'Unknown')
+                    receipt_date = extracted_data.get('date', '')
+                    receipt_merchants[merchant] += 1
+
+                    for item in extracted_data['items']:
+                        item_data = {
+                            'name': item.get('name', '').lower(),
+                            'price': item.get('price', 0),
+                            'quantity': item.get('quantity', 1),
+                            'merchant': merchant,
+                            'date': receipt_date
+                        }
+                        all_items.append(item_data)
+
+            if all_items:
+                user_context['total_items_purchased'] = len(all_items)
+
+                # Top purchased items by frequency and spending
+                item_frequency = defaultdict(int)
+                item_spending = defaultdict(float)
+
+                for item in all_items:
+                    item_name = item['name']
+                    item_frequency[item_name] += item['quantity']
+                    item_spending[item_name] += item['price'] * \
+                        item['quantity']
+
+                top_items_freq = sorted(
+                    item_frequency.items(), key=lambda x: x[1], reverse=True)[:5]
+                top_items_spend = sorted(
+                    item_spending.items(), key=lambda x: x[1], reverse=True)[:5]
+
+                user_context['top_purchased_items'] = top_items_freq
+                user_context['highest_spending_items'] = top_items_spend
+
+                # Recent items (last 30 days)
+                thirty_days_ago = datetime.now() - timedelta(days=30)
+                recent_items = []
+                for item in all_items:
+                    try:
+                        item_date = datetime.fromisoformat(item['date'])
+                        if item_date >= thirty_days_ago:
+                            recent_items.append(item)
+                    except:
+                        continue
+
+                if recent_items:
+                    user_context['recent_items_count'] = len(recent_items)
+                    recent_item_spending = sum(
+                        item['price'] * item['quantity'] for item in recent_items)
+                    user_context['recent_items_spending'] = recent_item_spending
+
+                # Store recent items for specific queries (limit for performance)
+                # Last 50 items
+                user_context['recent_items'] = recent_items[-50:]
+
+            # Top merchants from receipts
+            if receipt_merchants:
+                top_receipt_merchants = sorted(
+                    receipt_merchants.items(), key=lambda x: x[1], reverse=True)[:3]
+                user_context['top_receipt_merchants'] = top_receipt_merchants
+
+        # Call AI service
+        response = await ai_insights_service.chat_with_ai(
+            message=message,
+            user_context=user_context,
+            chat_history=chat_history
+        )
+
+        return response
+
+    except Exception as e:
+        logger.error(
+            f"Chat error for user {current_user['id']}: {str(e)}")
+        return {
+            "status": "error",
+            "response": "I'm sorry, I'm having trouble processing your request right now. Please try again.",
+            "error_type": "processing_error"
+        }
+
+
+@app.get("/api/v1/ai/tips")
+async def get_financial_tips(
+    category: Optional[str] = None,
+    current_user: Dict = Depends(get_current_user)
+):
+    """Get AI-generated financial tips."""
+    try:
+        # Get user's spending data for context
+        user_id = current_user["id"]
+        expenses = data_service.get_expenses_by_user(user_id)
+
+        # Determine amount range based on user's spending
+        amount_range = None
+        if expenses:
+            total_expenses = sum(exp.get('amount', 0) for exp in expenses)
+            monthly_avg = total_expenses / \
+                max(1, len(set(exp.get('date', '')[:7] for exp in expenses)))
+
+            if monthly_avg < 1000:
+                amount_range = "low budget"
+            elif monthly_avg < 3000:
+                amount_range = "medium budget"
+            else:
+                amount_range = "high budget"
+
+        response = await ai_insights_service.get_financial_tips(category, amount_range)
+        return response
+
+    except Exception as e:
+        logger.error(
+            f"Tips error for user {current_user['id']}: {str(e)}")
+        return {
+            "success": False,
+            "data": {
+                "tips": [
+                    {"title": "Track Your Expenses",
+                        "description": "Keep a record of all your spending to understand your patterns", "difficulty": "Easy"},
+                    {"title": "Create a Budget",
+                        "description": "Set spending limits for different categories", "difficulty": "Medium"},
+                    {"title": "Build an Emergency Fund",
+                        "description": "Save 3-6 months of expenses for unexpected costs", "difficulty": "Hard"}
+                ],
+                "category": category or "general",
+                "focus_area": "Basic financial management"
+            },
+            "source": "fallback"
+        }
