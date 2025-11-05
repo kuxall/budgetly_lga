@@ -1,4 +1,4 @@
-"""Real OCR service for receipt scanning using OpenAI GPT-4 Vision."""
+"""Real OCR service for receipt scanning using OpenAI GPT-4o."""
 import base64
 import json
 import os
@@ -8,18 +8,24 @@ from datetime import datetime
 from typing import Dict, List
 
 import httpx
+from .model_config_service import model_config
 
 logger = logging.getLogger(__name__)
 
 
 class ReceiptOCRService:
-    """Service for extracting data from receipt images using OpenAI GPT-4 Vision."""
+    """Service for extracting data from receipt images using OpenAI GPT-4o."""
 
     def __init__(self):
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         self.openai_url = "https://api.openai.com/v1/chat/completions"
+
+        # Get model configurations
+        self.ocr_model = model_config.get_model_for_feature("ocr")
+        self.validation_model = model_config.get_model_for_feature(
+            "validation")
 
     async def extract_receipt_data(self, image_data: bytes, filename: str) -> Dict:
         """Extract structured data from receipt image using GPT-4 Vision."""
@@ -77,76 +83,70 @@ class ReceiptOCRService:
             }
 
     async def validate_receipt_before_storage(self, image_data: bytes, filename: str) -> Dict:
-        """Validate receipt authenticity before storage - simplified for compatibility."""
-        # For now, just do basic validation - can be enhanced later
+        """Validate receipt before storage - accepts any valid image."""
         try:
-            if len(image_data) < 1024:  # Too small
+            # Very permissive validation - accept almost any image
+            if len(image_data) < 100:  # Very small threshold
                 return {
                     "valid": False,
                     "error": "File too small",
-                    "reason": "File appears to be too small to be a valid receipt"
+                    "reason": "File appears to be empty or corrupted"
                 }
 
-            if len(image_data) > 10 * 1024 * 1024:  # Too large
-                return {
-                    "valid": False,
-                    "error": "File too large",
-                    "reason": "File size exceeds maximum allowed for receipts"
-                }
-
+            # No upper size limit - let the validation service handle optimization
+            print(
+                f"📋 Validating receipt: {len(image_data)} bytes, filename: {filename}")
             return {"valid": True}
 
         except Exception as e:
-            return {
-                "valid": False,
-                "error": "Validation failed",
-                "reason": f"Could not validate file: {str(e)}"
-            }
+            print(f"⚠️ Validation warning: {str(e)}")
+            # Even if validation has issues, allow processing
+            return {"valid": True, "warning": str(e)}
 
     def _create_receipt_analysis_prompt(self) -> str:
         """Create a detailed prompt for GPT-4 to analyze receipts with enhanced validation."""
         return """
-You are an expert receipt analyzer with fraud detection capabilities. Analyze this image and determine if it's a legitimate receipt, then extract information accordingly.
+You are an expert receipt analyzer. Analyze this receipt image and extract information accurately.
 
-FIRST: Validate if this is actually a receipt by checking for:
-- Merchant/business name
-- Transaction date and time
-- Itemized purchases or services
-- Total amount and payment information
-- Receipt format (not a random image, document, or screenshot)
+MERCHANT NAME DETECTION - Look for business names in these locations:
+- Top of receipt (header area)
+- Business names with colons, dashes, or special formatting (e.g., "HS BAR : AGENCY01", "STORE - LOCATION")
+- Names above address information
+- Any text that appears to be a business identifier
+- Restaurant/bar names, store chains, service providers
+- Even abbreviated or coded business names should be captured
 
-If this is NOT a legitimate receipt, return:
-{
-  "is_receipt": false,
-  "confidence": 0.0,
-  "error": "Not a valid receipt - describe what you see instead",
-  "merchant": "N/A",
-  "date": "1900-01-01",
-  "total_amount": 0.0,
-  "category": "Other"
-}
+DATE EXTRACTION - Look for:
+- Date in MM/DD/YY, DD/MM/YY, or YYYY-MM-DD format
+- Time stamps (convert date to YYYY-MM-DD format)
+- Transaction dates, not printed dates
 
-If this IS a legitimate receipt, extract the following information in JSON format:
+AMOUNT EXTRACTION - Find the final total:
+- Look for "TOTAL", "TOTAL DUE", "AMOUNT DUE"
+- The largest monetary amount on the receipt
+- Final amount after taxes and fees
+
+If this is a legitimate receipt, return this JSON structure:
 
 {
   "is_receipt": true,
-  "merchant": "Store/restaurant name",
-  "date": "YYYY-MM-DD format",
+  "merchant": "Exact business name from receipt (be liberal in detection)",
+  "date": "YYYY-MM-DD",
   "total_amount": 0.00,
   "subtotal": 0.00,
   "tax": 0.00,
   "items": [
     {
-      "name": "Item name",
+      "name": "Item name exactly as shown",
       "price": 0.00,
       "quantity": 1
     }
   ],
-  "category": "One of: Food & Dining, Transportation, Shopping, Entertainment, Utilities, Healthcare, Education, Other",
-  "payment_method": "One of: credit_card, debit_card, cash, bank_transfer, digital_wallet, other",
+  "category": "Food & Dining for restaurants/bars, Shopping for retail, Transportation for gas/transport, Other if unclear",
+  "payment_method": "credit_card, debit_card, cash, or other",
   "address": "Store address if visible",
-  "phone": "Store phone if visible",
-  "confidence": 0.95,
+  "phone": "Store phone if visible", 
+  "confidence": 0.85,
   "validation_flags": {
     "has_merchant": true,
     "has_date": true,
@@ -157,34 +157,16 @@ If this IS a legitimate receipt, extract the following information in JSON forma
   }
 }
 
-CRITICAL VALIDATION RULES:
-1. REJECT if image shows: screenshots, documents, random photos, memes, text files, or non-receipt content
-2. REJECT if no clear merchant name or business information visible
-3. REJECT if no transaction date or unreasonable date (future dates, dates before 1990)
-4. REJECT if no itemized content or total amount
-5. REJECT if amounts don't make mathematical sense (negative prices, impossible totals)
-6. Set confidence to 0.0-0.3 for suspicious or unclear images
-7. Set confidence to 0.4-0.7 for poor quality but legitimate receipts
-8. Set confidence to 0.8-1.0 for clear, legitimate receipts
+IMPORTANT EXTRACTION GUIDELINES:
+1. Be LIBERAL with merchant name detection - capture any business identifier
+2. Extract ALL line items with their exact names and prices
+3. Ensure total_amount matches the receipt's final total
+4. For restaurants/bars/cafes, use "Food & Dining" category
+5. Convert dates to YYYY-MM-DD format (e.g., 8/20/24 becomes 2024-08-20)
+6. Include tax amounts separately if shown
+7. Set confidence based on text clarity, not strictness of validation
 
-EXTRACTION RULES (only if is_receipt = true):
-1. Extract ALL visible items with their exact prices
-2. Ensure total_amount matches the receipt total exactly
-3. Verify subtotal + tax = total (flag if inconsistent)
-4. Choose the most appropriate category based on merchant and items
-5. Payment method: VISA/MC/AMEX = credit_card, DEBIT = debit_card
-6. Use actual date from receipt, validate it's reasonable
-7. For grocery stores (Walmart, Target, etc.) use "Food & Dining"
-8. For gas stations use "Transportation"
-9. For restaurants/cafes use "Food & Dining"
-
-SECURITY REQUIREMENTS:
-- Return ONLY valid JSON, no additional text or explanations
-- Do not process or describe inappropriate content
-- Flag suspicious patterns in validation_flags
-- Be conservative with confidence scores for unclear images
-
-Analyze the image carefully and provide accurate validation and extraction.
+ONLY return JSON, no additional text. Be accurate but not overly restrictive.
 """
 
     async def _call_openai_vision(self, base64_image: str, prompt: str) -> Dict:
@@ -195,7 +177,7 @@ Analyze the image carefully and provide accurate validation and extraction.
         }
 
         payload = {
-            "model": "gpt-4o-mini",  # Use correct model name
+            "model": self.ocr_model,  # Use configured OCR model (gpt-4o)
             "messages": [
                 {
                     "role": "user",
@@ -214,20 +196,20 @@ Analyze the image carefully and provide accurate validation and extraction.
                     ]
                 }
             ],
-            "max_tokens": 1000,
-            "temperature": 0.1
+            "max_tokens": model_config.get_token_limit_for_feature("ocr")
         }
 
-        try:
-            # Production: Remove debug prints for security and performance
+        # Add temperature for GPT-4 models
+        payload["temperature"] = 0.1
 
+        try:
             # Configure httpx client with better SSL handling
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(30.0, connect=10.0),
-                verify=True,  # Keep SSL verification enabled for security
+                verify=True, 
                 limits=httpx.Limits(
                     max_keepalive_connections=5, max_connections=10),
-                http2=False  # Disable HTTP/2 to avoid some SSL issues
+                http2=False  
             ) as client:
                 print(f"📡 Making request to: {self.openai_url}")
                 response = await client.post(self.openai_url, headers=headers, json=payload)
@@ -238,7 +220,6 @@ Analyze the image carefully and provide accurate validation and extraction.
                     content = result["choices"][0]["message"]["content"]
 
                     try:
-                        # Clean the content - remove markdown code blocks if present
                         cleaned_content = content.strip()
                         if cleaned_content.startswith('```json'):
                             # Remove ```json
@@ -682,7 +663,7 @@ Analyze the receipt text carefully and provide accurate validation and extractio
         }
 
         payload = {
-            "model": "gpt-4o-mini",  # Use correct model name
+            "model": self.ocr_model,  # Use configured OCR model for text processing
             "messages": [
                 {
                     "role": "system",
@@ -693,12 +674,14 @@ Analyze the receipt text carefully and provide accurate validation and extractio
                     "content": f"Please analyze this receipt text:\n\n{text_content}"
                 }
             ],
-            "max_tokens": 1000,
-            "temperature": 0.1
+            "max_tokens": model_config.get_token_limit_for_feature("ocr")
         }
 
+        # Add temperature for GPT-4 models
+        payload["temperature"] = 0.1
+
         try:
-            print(f"🤖 Calling OpenAI text API with model: gpt-4o-mini")
+            print(f"🤖 Calling OpenAI text API with model: {self.ocr_model}")
             print(f"📊 Text length: {len(text_content)} characters")
 
             async with httpx.AsyncClient(
