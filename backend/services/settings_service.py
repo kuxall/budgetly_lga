@@ -3,9 +3,7 @@ Settings Service - Manages user preferences and application settings
 """
 from typing import Dict, Any
 from datetime import datetime, timezone
-import json
 import logging
-import os
 
 from services.data_services import data_service
 
@@ -13,34 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 class SettingsService:
-    """Service for managing user settings using JSON file storage"""
+    """Service for managing user settings using MongoDB storage"""
 
     def __init__(self):
-        self.settings_file = "backend/data/user_settings.json"
-        self.settings_db = {}
-        self.load_settings()
-
-    def load_settings(self):
-        """Load settings from JSON file"""
-        try:
-            if os.path.exists(self.settings_file):
-                with open(self.settings_file, 'r', encoding='utf-8') as f:
-                    self.settings_db = json.load(f)
-            else:
-                self.settings_db = {}
-        except Exception as e:
-            logger.error("Error loading settings: %s", str(e))
-            self.settings_db = {}
-
-    def save_settings(self):
-        """Save settings to JSON file"""
-        try:
-            os.makedirs(os.path.dirname(self.settings_file), exist_ok=True)
-            with open(self.settings_file, 'w', encoding='utf-8') as f:
-                json.dump(self.settings_db, f, indent=2)
-        except Exception as e:
-            logger.error("Error saving settings: %s", str(e))
-            raise Exception("Failed to save settings") from e
+        # No file-based storage needed - using MongoDB through data_service
+        pass
 
     def get_user_settings(self, user_id: str) -> Dict[str, Any]:
         """Get all settings for a user"""
@@ -50,8 +25,8 @@ class SettingsService:
             if not user:
                 raise Exception("User not found")
 
-            # Get or create user settings
-            user_settings = self.settings_db.get(user_id, {})
+            # Get or create user settings from user document
+            user_settings = user.get("settings", {})
             if not user_settings:
                 user_settings = self._create_default_settings(user_id)
 
@@ -96,9 +71,9 @@ class SettingsService:
                 raise Exception("User not found")
 
             # Get or create user settings
-            user_settings = self.settings_db.get(user_id, {})
+            user_settings = user.get("settings", {})
             if not user_settings:
-                user_settings = self._create_default_settings(user_id)
+                user_settings = self._get_default_settings()
 
             # Update preferences
             if "preferences" not in user_settings:
@@ -116,8 +91,11 @@ class SettingsService:
                 user_settings["preferences"]["theme"] = preferences["theme"]
 
             user_settings["updated_at"] = datetime.utcnow().isoformat()
-            self.settings_db[user_id] = user_settings
-            self.save_settings()
+
+            # Save settings to user document in MongoDB
+            user["settings"] = user_settings
+            user["updated_at"] = datetime.utcnow().isoformat()
+            data_service.save_user(user_id, user)
 
             return self._format_settings_response(user, user_settings)
 
@@ -133,9 +111,9 @@ class SettingsService:
                 raise Exception("User not found")
 
             # Get or create user settings
-            user_settings = self.settings_db.get(user_id, {})
+            user_settings = user.get("settings", {})
             if not user_settings:
-                user_settings = self._create_default_settings(user_id)
+                user_settings = self._get_default_settings()
 
             # Update notifications
             if "notifications" not in user_settings:
@@ -151,8 +129,11 @@ class SettingsService:
                     user_settings["notifications"][field] = notifications[field]
 
             user_settings["updated_at"] = datetime.utcnow().isoformat()
-            self.settings_db[user_id] = user_settings
-            self.save_settings()
+
+            # Save settings to user document in MongoDB
+            user["settings"] = user_settings
+            user["updated_at"] = datetime.utcnow().isoformat()
+            data_service.save_user(user_id, user)
 
             return self._format_settings_response(user, user_settings)
 
@@ -168,9 +149,9 @@ class SettingsService:
                 raise Exception("User not found")
 
             # Get or create user settings
-            user_settings = self.settings_db.get(user_id, {})
+            user_settings = user.get("settings", {})
             if not user_settings:
-                user_settings = self._create_default_settings(user_id)
+                user_settings = self._get_default_settings()
 
             # Update receipt settings
             if "receiptSettings" not in user_settings:
@@ -192,8 +173,11 @@ class SettingsService:
                 )
 
             user_settings["updated_at"] = datetime.utcnow().isoformat()
-            self.settings_db[user_id] = user_settings
-            self.save_settings()
+
+            # Save settings to user document in MongoDB
+            user["settings"] = user_settings
+            user["updated_at"] = datetime.utcnow().isoformat()
+            data_service.save_user(user_id, user)
 
             return self._format_settings_response(user, user_settings)
 
@@ -209,9 +193,9 @@ class SettingsService:
                 raise Exception("User not found")
 
             # Get or create user settings
-            user_settings = self.settings_db.get(user_id, {})
+            user_settings = user.get("settings", {})
             if not user_settings:
-                user_settings = self._create_default_settings(user_id)
+                user_settings = self._get_default_settings()
 
             # Update security settings
             if "security" not in user_settings:
@@ -227,8 +211,11 @@ class SettingsService:
                 )
 
             user_settings["updated_at"] = datetime.utcnow().isoformat()
-            self.settings_db[user_id] = user_settings
-            self.save_settings()
+
+            # Save settings to user document in MongoDB
+            user["settings"] = user_settings
+            user["updated_at"] = datetime.utcnow().isoformat()
+            data_service.save_user(user_id, user)
 
             return self._format_settings_response(user, user_settings)
 
@@ -251,12 +238,13 @@ class SettingsService:
                     # Handle different datetime formats
                     if created_at_str.endswith('Z'):
                         created_at_str = created_at_str.replace('Z', '+00:00')
-                    
+
                     created_date = datetime.fromisoformat(created_at_str)
                     # Make timezone-aware if needed
                     if created_date.tzinfo is None:
-                        created_date = created_date.replace(tzinfo=timezone.utc)
-                    
+                        created_date = created_date.replace(
+                            tzinfo=timezone.utc)
+
                     now = datetime.now(timezone.utc)
                     days_active = max(0, (now - created_date).days)
                 except (ValueError, TypeError) as e:
@@ -274,7 +262,7 @@ class SettingsService:
             receipts_with_data = [
                 exp for exp in user_expenses if exp.get("receipt_data")
             ]
-            
+
             # Count receipt processing - ALL receipts are auto-processed
             receipts_processed = len(receipts_with_data)
             total_uploaded = receipts_processed  # All receipts with data were uploaded
@@ -293,8 +281,9 @@ class SettingsService:
                     receipt_data = expense.get("receipt_data", {})
                     if receipt_data:
                         # Rough estimate: JSON data + estimated image size
-                        storage_bytes += len(str(receipt_data)) + 50000  # ~50KB per receipt estimate
-            
+                        # ~50KB per receipt estimate
+                        storage_bytes += len(str(receipt_data)) + 50000
+
             # Convert to human readable format
             if storage_bytes < 1024:
                 storage_used = f"{storage_bytes} B"
@@ -319,9 +308,21 @@ class SettingsService:
             raise Exception("Failed to retrieve user statistics") from e
 
     def _create_default_settings(self, user_id: str) -> Dict[str, Any]:
-        """Create default settings for a user"""
-        default_settings = {
-            "user_id": user_id,
+        """Create default settings for a user and save to MongoDB"""
+        default_settings = self._get_default_settings()
+
+        # Get user and add settings to their document
+        user = data_service.users_db.get(user_id)
+        if user:
+            user["settings"] = default_settings
+            user["updated_at"] = datetime.utcnow().isoformat()
+            data_service.save_user(user_id, user)
+
+        return default_settings
+
+    def _get_default_settings(self) -> Dict[str, Any]:
+        """Get default settings structure"""
+        return {
             "preferences": {
                 "currency": "CAD",
                 "dateFormat": "DD/MM/YYYY",
@@ -350,46 +351,25 @@ class SettingsService:
             "updated_at": datetime.utcnow().isoformat()
         }
 
-        self.settings_db[user_id] = default_settings
-        self.save_settings()
-        return default_settings
-
     def _format_settings_response(self, user: Dict[str, Any], user_settings: Dict[str, Any]) -> Dict[str, Any]:
         """Format settings response for frontend"""
+        defaults = self._get_default_settings()
+
         return {
             "profile": {
                 "firstName": user.get("first_name", ""),
                 "lastName": user.get("last_name", ""),
                 "email": user.get("email", "")
             },
-            "preferences": user_settings.get("preferences", {
-                "currency": "CAD",
-                "dateFormat": "DD/MM/YYYY",
-                "language": "en",
-                "timezone": "America/Toronto",
-                "theme": "light"
-            }),
-            "notifications": user_settings.get("notifications", {
-                "emailNotifications": True,
-                "budgetAlerts": True,
-                "receiptReminders": False,
-                "weeklyReports": True,
-                "securityAlerts": True
-            }),
-            "receiptSettings": user_settings.get("receiptSettings", {
-                "autoProcess": True,
-                "storageTime": "24",
-                "maxFileSize": "10",
-                "allowedFormats": ["JPEG", "PNG", "PDF"]
-            }),
-            "security": user_settings.get("security", {
-                "twoFactorEnabled": False,
-                "loginNotifications": True
-            })
+            "preferences": user_settings.get("preferences", defaults["preferences"]),
+            "notifications": user_settings.get("notifications", defaults["notifications"]),
+            "receiptSettings": user_settings.get("receiptSettings", defaults["receiptSettings"]),
+            "security": user_settings.get("security", defaults["security"])
         }
 
 
 setting_service = SettingsService()
+
 
 def get_settings_service() -> SettingsService:
     """Get settings service instance"""
