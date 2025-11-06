@@ -12,17 +12,31 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const ReceiptGallery = ({ onAddExpense }) => {
+const ReceiptGallery = ({
+	onAddExpense,
+	receipts: propReceipts,
+	loading: propLoading,
+	showCount = false,
+	totalCount = 0
+}) => {
 	const [receipts, setReceipts] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [selectedReceipt, setSelectedReceipt] = useState(null);
 	const [showImageModal, setShowImageModal] = useState(false);
 
+	// Use props if provided, otherwise load receipts internally
 	useEffect(() => {
-		loadReceipts();
-	}, []);
+		if (propReceipts !== undefined) {
+			setReceipts(propReceipts);
+			setLoading(propLoading || false);
+		} else {
+			loadReceipts();
+		}
+	}, [propReceipts, propLoading]);
 
 	const loadReceipts = async () => {
+		if (propReceipts !== undefined) return; // Don't load if receipts are provided via props
+
 		try {
 			const token = localStorage.getItem('auth_token');
 			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
@@ -170,9 +184,9 @@ const ReceiptGallery = ({ onAddExpense }) => {
 	};
 
 	const getConfidenceColor = (confidence) => {
-		if (confidence >= 0.8) return 'text-green-600';
-		if (confidence >= 0.5) return 'text-yellow-600';
-		return 'text-red-600';
+		if (confidence >= 0.8) return 'bg-green-100 text-green-800';
+		if (confidence >= 0.5) return 'bg-yellow-100 text-yellow-800';
+		return 'bg-red-100 text-red-800';
 	};
 
 	const formatDate = (dateString) => {
@@ -196,8 +210,17 @@ const ReceiptGallery = ({ onAddExpense }) => {
 		return (
 			<div className="text-center py-12">
 				<Receipt className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-				<h3 className="text-lg font-medium text-gray-900 mb-2">No receipts uploaded</h3>
-				<p className="text-gray-500 mb-6">Upload your first receipt to get started with automatic expense tracking.</p>
+				{showCount && totalCount > 0 ? (
+					<>
+						<h3 className="text-lg font-medium text-gray-900 mb-2">No receipts match your filters</h3>
+						<p className="text-gray-500 mb-6">Try adjusting your filter criteria to see more results.</p>
+					</>
+				) : (
+					<>
+						<h3 className="text-lg font-medium text-gray-900 mb-2">No receipts uploaded</h3>
+						<p className="text-gray-500 mb-6">Upload your first receipt to get started with automatic expense tracking.</p>
+					</>
+				)}
 			</div>
 		);
 	}
@@ -208,7 +231,11 @@ const ReceiptGallery = ({ onAddExpense }) => {
 			<div className="flex items-center justify-between">
 				<h2 className="text-xl font-semibold text-gray-900">Receipt Gallery</h2>
 				<div className="text-sm text-gray-500">
-					{receipts.length} receipt{receipts.length !== 1 ? 's' : ''}
+					{showCount && totalCount > 0 ? (
+						<>Showing {receipts.length} of {totalCount} receipts</>
+					) : (
+						<>{receipts.length} receipt{receipts.length !== 1 ? 's' : ''}</>
+					)}
 				</div>
 			</div>
 
@@ -256,11 +283,35 @@ const ReceiptGallery = ({ onAddExpense }) => {
 										{receipt.extracted_data?.date || 'No date'}
 									</div>
 									{receipt.extracted_data?.confidence && (
-										<div className={`font-medium ${getConfidenceColor(receipt.extracted_data.confidence)}`}>
-											{Math.round(receipt.extracted_data.confidence * 100)}%
+										<div className="flex items-center space-x-1">
+											<span className="text-xs text-gray-400">AI:</span>
+											<div className={`px-2 py-1 rounded-full text-xs font-medium ${getConfidenceColor(receipt.extracted_data.confidence)}`}>
+												{Math.round(receipt.extracted_data.confidence * 100)}%
+											</div>
 										</div>
 									)}
 								</div>
+
+								{/* Confidence Bar */}
+								{receipt.extracted_data?.confidence && (
+									<div className="mt-2">
+										<div className="flex items-center justify-between text-xs mb-1">
+											<span className="text-gray-500">Extraction Confidence</span>
+											<span className={`font-medium ${getConfidenceColor(receipt.extracted_data.confidence)}`}>
+												{receipt.extracted_data.confidence >= 0.8 ? 'High' :
+													receipt.extracted_data.confidence >= 0.5 ? 'Medium' : 'Low'}
+											</span>
+										</div>
+										<div className="w-full bg-gray-200 rounded-full h-1.5">
+											<div
+												className={`h-1.5 rounded-full transition-all duration-300 ${receipt.extracted_data.confidence >= 0.8 ? 'bg-green-500' :
+													receipt.extracted_data.confidence >= 0.5 ? 'bg-yellow-500' : 'bg-red-500'
+													}`}
+												style={{ width: `${Math.round(receipt.extracted_data.confidence * 100)}%` }}
+											></div>
+										</div>
+									</div>
+								)}
 
 								{/* Upload Date */}
 								<div className="text-xs text-gray-400">

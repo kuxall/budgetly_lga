@@ -868,6 +868,460 @@ The Budgetly Team
         """
         return html_content
 
+    def _create_budget_alert_html(self, user_name: str, budget_data: dict) -> str:
+        """Create HTML content for budget alert email."""
+        category = budget_data.get('category', 'Unknown')
+        spent = budget_data.get('spent', 0)
+        budget_amount = budget_data.get('budget_amount', 0)
+        percentage = budget_data.get('percentage', 0)
+        remaining = budget_amount - spent
+        # warning, danger, exceeded
+        alert_type = budget_data.get('alert_type', 'warning')
+
+        # Determine colors and messaging based on alert type
+        if alert_type == 'exceeded':
+            header_color = '#dc2626'  # red
+            alert_emoji = '🚨'
+            alert_title = 'Budget Exceeded!'
+            alert_message = f'You have exceeded your {category} budget by ${abs(remaining):.2f}'
+            status_color = '#fee2e2'
+            status_text_color = '#991b1b'
+        elif alert_type == 'danger':
+            header_color = '#ea580c'  # orange
+            alert_emoji = '⚠️'
+            alert_title = 'Budget Alert - 90% Reached'
+            alert_message = f'You\'re very close to your {category} budget limit'
+            status_color = '#fed7aa'
+            status_text_color = '#9a3412'
+        else:  # warning
+            header_color = '#eab308'  # yellow
+            alert_emoji = '💡'
+            alert_title = 'Budget Alert - 80% Reached'
+            alert_message = f'You\'ve used 80% of your {category} budget'
+            status_color = '#fef3c7'
+            status_text_color = '#92400e'
+
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Budget Alert - {category}</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+                
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                
+                body {{
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    line-height: 1.6;
+                    color: #1f2937;
+                    background: linear-gradient(135deg, {header_color} 0%, #1f2937 100%);
+                    min-height: 100vh;
+                    padding: 20px;
+                }}
+                
+                .email-wrapper {{
+                    max-width: 600px;
+                    margin: 0 auto;
+                    background: rgba(255, 255, 255, 0.95);
+                    backdrop-filter: blur(10px);
+                    border-radius: 20px;
+                    overflow: hidden;
+                    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+                }}
+                
+                .header {{
+                    background: linear-gradient(135deg, {header_color} 0%, #1f2937 100%);
+                    padding: 40px 30px;
+                    text-align: center;
+                    position: relative;
+                    overflow: hidden;
+                }}
+                
+                .alert-icon {{
+                    font-size: 64px;
+                    margin-bottom: 20px;
+                    animation: pulse 2s ease-in-out infinite;
+                }}
+                
+                @keyframes pulse {{
+                    0%, 100% {{ transform: scale(1); }}
+                    50% {{ transform: scale(1.1); }}
+                }}
+                
+                .alert-title {{
+                    color: white;
+                    font-size: 28px;
+                    font-weight: 700;
+                    margin: 15px 0 5px 0;
+                    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                }}
+                
+                .alert-subtitle {{
+                    color: rgba(255, 255, 255, 0.9);
+                    font-size: 16px;
+                    font-weight: 400;
+                    margin: 0;
+                }}
+                
+                .content {{
+                    padding: 40px;
+                    background: white;
+                }}
+                
+                .greeting {{
+                    font-size: 18px;
+                    font-weight: 500;
+                    color: #374151;
+                    margin-bottom: 25px;
+                }}
+                
+                .alert-message {{
+                    color: #4b5563;
+                    font-size: 16px;
+                    line-height: 1.7;
+                    margin-bottom: 30px;
+                    text-align: center;
+                    background: {status_color};
+                    color: {status_text_color};
+                    padding: 20px;
+                    border-radius: 12px;
+                    font-weight: 500;
+                }}
+                
+                .budget-stats {{
+                    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+                    border-radius: 15px;
+                    padding: 30px;
+                    margin: 30px 0;
+                    border-left: 4px solid {header_color};
+                }}
+                
+                .budget-category {{
+                    font-size: 20px;
+                    font-weight: 600;
+                    color: #1f2937;
+                    margin-bottom: 20px;
+                    text-align: center;
+                }}
+                
+                .stats-grid {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                    gap: 20px;
+                    margin-bottom: 25px;
+                }}
+                
+                .stat-item {{
+                    text-align: center;
+                    padding: 15px;
+                    background: white;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+                }}
+                
+                .stat-value {{
+                    font-size: 24px;
+                    font-weight: 700;
+                    color: #1f2937;
+                    margin-bottom: 5px;
+                }}
+                
+                .stat-label {{
+                    font-size: 12px;
+                    color: #6b7280;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }}
+                
+                .progress-container {{
+                    margin: 20px 0;
+                }}
+                
+                .progress-label {{
+                    display: flex;
+                    justify-content: between;
+                    margin-bottom: 8px;
+                    font-size: 14px;
+                    color: #374151;
+                }}
+                
+                .progress-bar {{
+                    width: 100%;
+                    height: 12px;
+                    background: #e5e7eb;
+                    border-radius: 6px;
+                    overflow: hidden;
+                }}
+                
+                .progress-fill {{
+                    height: 100%;
+                    background: linear-gradient(90deg, {header_color}, #1f2937);
+                    border-radius: 6px;
+                    width: {min(percentage, 100)}%;
+                    transition: width 0.3s ease;
+                }}
+                
+                .progress-text {{
+                    text-align: center;
+                    margin-top: 8px;
+                    font-size: 14px;
+                    font-weight: 500;
+                    color: {status_text_color};
+                }}
+                
+                .recommendations {{
+                    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+                    border-radius: 12px;
+                    padding: 25px;
+                    margin: 25px 0;
+                    border-left: 4px solid #3b82f6;
+                }}
+                
+                .recommendations-title {{
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: #1f2937;
+                    margin-bottom: 15px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }}
+                
+                .recommendations-list {{
+                    list-style: none;
+                    padding: 0;
+                }}
+                
+                .recommendations-list li {{
+                    color: #4b5563;
+                    font-size: 14px;
+                    margin-bottom: 8px;
+                    padding-left: 20px;
+                    position: relative;
+                }}
+                
+                .recommendations-list li::before {{
+                    content: '💡';
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                }}
+                
+                .cta-container {{
+                    text-align: center;
+                    margin: 30px 0;
+                }}
+                
+                .cta-button {{
+                    display: inline-block;
+                    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+                    color: white;
+                    text-decoration: none;
+                    padding: 15px 30px;
+                    border-radius: 10px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+                    transition: all 0.3s ease;
+                }}
+                
+                .cta-button:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 12px 25px rgba(59, 130, 246, 0.4);
+                }}
+                
+                .footer {{
+                    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+                    padding: 30px;
+                    text-align: center;
+                    color: #9ca3af;
+                }}
+                
+                .footer-text {{
+                    font-size: 14px;
+                    line-height: 1.6;
+                }}
+                
+                @media (max-width: 600px) {{
+                    body {{ padding: 10px; }}
+                    .content {{ padding: 25px 20px; }}
+                    .header {{ padding: 30px 20px; }}
+                    .stats-grid {{ grid-template-columns: 1fr; }}
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="email-wrapper">
+                <div class="header">
+                    <div class="alert-icon">{alert_emoji}</div>
+                    <h1 class="alert-title">{alert_title}</h1>
+                    <p class="alert-subtitle">Budgetly Alert System</p>
+                </div>
+                
+                <div class="content">
+                    <div class="greeting">
+                        Hello {user_name or "there"}! 👋
+                    </div>
+                    
+                    <div class="alert-message">
+                        {alert_message}
+                    </div>
+                    
+                    <div class="budget-stats">
+                        <div class="budget-category">{category} Budget</div>
+                        
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <div class="stat-value">${spent:.2f}</div>
+                                <div class="stat-label">Spent</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${budget_amount:.2f}</div>
+                                <div class="stat-label">Budget</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${abs(remaining):.2f}</div>
+                                <div class="stat-label">{'Over' if remaining < 0 else 'Remaining'}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">{percentage:.1f}%</div>
+                                <div class="stat-label">Used</div>
+                            </div>
+                        </div>
+                        
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill"></div>
+                            </div>
+                            <div class="progress-text">
+                                {percentage:.1f}% of budget used
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="recommendations">
+                        <div class="recommendations-title">
+                            💡 Smart Recommendations
+                        </div>
+                        <ul class="recommendations-list">
+                            {'<li>Consider reducing spending in this category for the rest of the period</li>' if alert_type != 'exceeded' else '<li>Review your recent expenses to identify areas for adjustment</li>'}
+                            <li>Set up spending alerts for smaller amounts to catch overspending earlier</li>
+                            <li>Review and adjust your budget if your spending patterns have changed</li>
+                            {'<li>Consider creating a separate emergency fund for unexpected expenses</li>' if alert_type == 'exceeded' else '<li>Track daily spending to stay within your remaining budget</li>'}
+                        </ul>
+                    </div>
+                    
+                    <div class="cta-container">
+                        <a href="{self.frontend_url}/budget" class="cta-button">
+                            📊 View Budget Details
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="footer">
+                    <div class="footer-text">
+                        Stay on track with Budgetly's smart budget alerts<br>
+                        © 2025 Budgetly. All rights reserved.
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return html_content
+
+    async def send_budget_alert_email(self, to_email: str, user_name: str, budget_data: dict) -> bool:
+        """Send budget alert email to user."""
+        if not self.is_configured:
+            logger.warning(
+                "Email service not configured. Cannot send budget alert email.")
+            # Log the alert for development
+            category = budget_data.get('category', 'Unknown')
+            percentage = budget_data.get('percentage', 0)
+            alert_type = budget_data.get('alert_type', 'warning')
+            print(f"\n🚨 Budget Alert for {to_email}:")
+            print(f"   Category: {category}")
+            print(f"   Usage: {percentage:.1f}%")
+            print(f"   Alert Type: {alert_type}")
+            print(f"   (Email would be sent if SMTP was configured)\n")
+            return False
+
+        try:
+            category = budget_data.get('category', 'Unknown')
+            percentage = budget_data.get('percentage', 0)
+            alert_type = budget_data.get('alert_type', 'warning')
+
+            # Determine subject based on alert type
+            if alert_type == 'exceeded':
+                subject = f"🚨 Budget Exceeded: {category} - Budgetly Alert"
+            elif alert_type == 'danger':
+                subject = f"⚠️ Budget Alert: {category} at {percentage:.0f}% - Budgetly"
+            else:
+                subject = f"💡 Budget Alert: {category} at {percentage:.0f}% - Budgetly"
+
+            # Create message
+            message = MIMEMultipart("alternative")
+            message["Subject"] = subject
+            message["From"] = f"{self.from_name} <{self.from_email}>"
+            message["To"] = to_email
+
+            # Create text version
+            spent = budget_data.get('spent', 0)
+            budget_amount = budget_data.get('budget_amount', 0)
+            remaining = budget_amount - spent
+
+            text_content = f"""
+Hello {user_name or "there"},
+
+Budget Alert: {category}
+
+You've used {percentage:.1f}% of your {category} budget.
+
+Budget Details:
+• Spent: ${spent:.2f}
+• Budget: ${budget_amount:.2f}
+• {'Remaining' if remaining >= 0 else 'Over by'}: ${abs(remaining):.2f}
+
+{'⚠️ You have exceeded your budget limit!' if alert_type == 'exceeded' else '💡 Consider monitoring your spending in this category.'}
+
+View your budget details: {self.frontend_url}/budget
+
+Best regards,
+The Budgetly Team
+
+© 2025 Budgetly. All rights reserved.
+            """
+
+            html_content = self._create_budget_alert_html(
+                user_name, budget_data)
+
+            # Attach parts
+            text_part = MIMEText(text_content, "plain")
+            html_part = MIMEText(html_content, "html")
+
+            message.attach(text_part)
+            message.attach(html_part)
+
+            # Send email
+            with self._create_smtp_connection() as server:
+                server.send_message(message)
+
+            logger.info(
+                f"Budget alert email sent successfully to {to_email} for {category} budget")
+            return True
+
+        except Exception as e:
+            logger.error(
+                f"Failed to send budget alert email to {to_email}: {str(e)}")
+            return False
+
     async def send_welcome_email(self, to_email: str, user_name: str) -> bool:
         """Send welcome email to new user."""
         if not self.is_configured:
