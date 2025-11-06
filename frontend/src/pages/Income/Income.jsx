@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useIncomeStore } from "../../store/incomeStore";
 import { Trash2, DollarSign, Calendar, Edit2, Save, X } from "lucide-react";
+import DataFilters from "../../components/ui/DataFilters";
 import MainLayout from "../../components/layout/MainLayout";
 
 const Income = () => {
@@ -24,10 +25,22 @@ const Income = () => {
 
 	const [editingIncome, setEditingIncome] = useState(null);
 	const [editFormData, setEditFormData] = useState({});
+	const [filteredIncome, setFilteredIncome] = useState([]);
+	const [activeFilters, setActiveFilters] = useState({});
 
 	useEffect(() => {
 		fetchIncome();
 	}, [fetchIncome]);
+
+	// Initialize filtered income when income changes
+	useEffect(() => {
+		setFilteredIncome(income);
+	}, [income]);
+
+	const handleFilterChange = (filtered, filters) => {
+		setFilteredIncome(filtered);
+		setActiveFilters(filters);
+	};
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
@@ -221,12 +234,32 @@ const Income = () => {
 					</div>
 				</div>
 
+				{/* Filters */}
+				<DataFilters
+					data={income}
+					onFilterChange={handleFilterChange}
+					filterConfig={{
+						showSource: true,
+						showDateRange: true,
+						showAmountRange: true,
+						showSearch: true,
+						showCategory: false,
+						showPaymentMethod: false,
+						showMerchant: false,
+					}}
+				/>
+
 				{/* Income History */}
 				<div className="bg-white shadow rounded-lg">
 					<div className="px-4 py-5 sm:p-6">
-						<h4 className="text-lg font-medium text-gray-900 mb-4">
-							Income History
-						</h4>
+						<div className="flex items-center justify-between mb-4">
+							<h4 className="text-lg font-medium text-gray-900">
+								Income History
+							</h4>
+							<div className="text-sm text-gray-500">
+								Showing {filteredIncome.length} of {income.length} records
+							</div>
+						</div>
 
 						{isLoading ? (
 							<div className="text-center py-4">
@@ -237,9 +270,16 @@ const Income = () => {
 							<p className="text-gray-500 text-center py-8">
 								No income records yet.
 							</p>
+						) : filteredIncome.length === 0 ? (
+							<div className="text-center py-8">
+								<p className="text-gray-500">No income records match your current filters.</p>
+								<p className="text-sm text-gray-400 mt-2">
+									Try adjusting your filter criteria to see more results.
+								</p>
+							</div>
 						) : (
 							<div className="space-y-3">
-								{income.map((incomeItem) => (
+								{filteredIncome.map((incomeItem) => (
 									<div
 										key={incomeItem.id}
 										className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
