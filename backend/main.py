@@ -790,6 +790,20 @@ async def create_expense(request: Request, current_user: Dict = Depends(get_curr
     }
 
     data_service.add_expense(expense)
+
+    # Check for budget alerts after adding expense
+    try:
+        from services.budget_monitoring_service import budget_monitoring_service
+        alerts_sent = await budget_monitoring_service.process_budget_alerts_for_user(
+            current_user["id"], bypass_cooldown=False
+        )
+        if alerts_sent > 0:
+            logger.info(
+                f"Budget alert triggered for user {current_user['id']} after expense in {expense['category']}")
+    except Exception as e:
+        logger.warning(
+            f"Failed to check budget alerts after expense creation: {str(e)}")
+
     return expense
 
 
@@ -859,6 +873,20 @@ async def update_expense(expense_id: str, request: Request, current_user: Dict =
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update expense"
         )
+
+    # Check for budget alerts if amount or category changed
+    if "amount" in data or "category" in data:
+        try:
+            from services.budget_monitoring_service import budget_monitoring_service
+            alerts_sent = await budget_monitoring_service.process_budget_alerts_for_user(
+                current_user["id"], bypass_cooldown=False
+            )
+            if alerts_sent > 0:
+                logger.info(
+                    f"Budget alert triggered for user {current_user['id']} after expense update in {updated_expense['category']}")
+        except Exception as e:
+            logger.warning(
+                f"Failed to check budget alerts after expense update: {str(e)}")
 
     return updated_expense
 
@@ -942,6 +970,92 @@ async def get_budgets(current_user: Dict = Depends(get_current_user)):
     """Get user budgets."""
     user_budgets = data_service.get_budgets_by_user(current_user["id"])
     return user_budgets
+
+
+# Budget Alert endpoints
+
+@app.get("/api/v1/budgets/alerts/check")
+async def check_budget_alerts(current_user: Dict = Depends(get_current_user)):
+    """Check and send budget alerts for current user."""
+    try:
+        from services.budget_monitoring_service import budget_monitoring_service
+
+        alerts_sent = await budget_monitoring_service.process_budget_alerts_for_user(
+            current_user["id"], bypass_cooldown=True
+        )
+
+        return {
+            "success": True,
+            "alerts_sent": alerts_sent,
+            "message": f"{alerts_sent} budget alerts processed"
+        }
+
+    except Exception as e:
+        logger.error(f"Error checking budget alerts: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check budget alerts: {str(e)}"
+        ) from e
+
+
+@app.get("/api/v1/budgets/status")
+async def get_budget_status(current_user: Dict = Depends(get_current_user)):
+    """Get budget status summary for current user."""
+    try:
+        from services.budget_monitoring_service import budget_monitoring_service
+
+        budget_summary = budget_monitoring_service.get_user_budget_summary(
+            current_user["id"])
+
+        return {
+            "success": True,
+            "budgets": budget_summary,
+            "total_budgets": len(budget_summary),
+            "alerts_needed": len([b for b in budget_summary if b['percentage'] >= 80])
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting budget status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get budget status: {str(e)}"
+        ) from e
+
+
+@app.post("/api/v1/budgets/{budget_id}/check-alert")
+async def check_single_budget_alert(budget_id: str, current_user: Dict = Depends(get_current_user)):
+    """Check alert for a specific budget."""
+    try:
+        from services.budget_monitoring_service import budget_monitoring_service
+
+        # Verify budget belongs to user
+        budget = data_service.get_budget(budget_id)
+        if not budget or budget["user_id"] != current_user["id"]:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Budget not found"
+            )
+
+        # Check alerts for this specific user (will include the budget)
+        alerts_sent = await budget_monitoring_service.process_budget_alerts_for_user(
+            current_user["id"], bypass_cooldown=True
+        )
+
+        return {
+            "success": True,
+            "alert_sent": alerts_sent > 0,
+            "alerts_sent": alerts_sent,
+            "message": "Budget alert checked successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking single budget alert: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check budget alert: {str(e)}"
+        ) from e
 
 
 @app.get("/api/v1/settings")
@@ -1218,15 +1332,6 @@ async def delete_user_account(current_user: Dict = Depends(get_current_user)):
         ) from e
 
 
-# @app.delete("/api/v1/budgets/{budget_id}")
-# async def delete_budget(budget_id: str, current_user: Dict = Depends(get_current_user)):
-#     """Delete budget."""
-#     # Find budget
-#     budget = None
-#     for b in data_service.budgets_db:
-#         if b["id"] == budget_id and b["user_id"] == current_user["id"]:
-#             budget = b
-#             break
 @app.put("/api/v1/budgets/{budget_id}")
 async def update_budget(budget_id: str, request: Request, current_user: Dict = Depends(get_current_user)):
     """Update an existing budget."""
@@ -2347,3 +2452,124 @@ async def get_financial_tips(
             },
             "source": "fallback"
         }
+
+
+# Receipt to Expense endpoint
+@app.post("/api/v1/expenses/create-from-receipt")
+async def create_expense_from_receipt(request: Request, current_user: Dict = Depends(get_current_user)):
+    """Create expense from receipt data."""
+    try:
+        data = await request.json()
+
+        validate_required_fields(data, ["description", "amount"])
+
+        try:
+            amount = float(data["amount"])
+            if amount <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Amount must be a positive number"
+            )
+
+        expense_id = secrets.token_urlsafe(16)
+        expense = {
+            "id": expense_id,
+            "user_id": current_user["id"],
+            "description": data["description"],
+            "amount": amount,
+            "category": data.get("category", "Other"),
+            "date": data.get("date", datetime.utcnow().date().isoformat()),
+            "payment_method": data.get("payment_method", "other"),
+            "notes": data.get("notes", ""),
+            "receipt_token": data.get("receipt_token", ""),  # Link to receipt
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat()
+        }
+
+        data_service.add_expense(expense)
+
+        # Check for budget alerts after adding expense from receipt
+        try:
+            from services.budget_monitoring_service import budget_monitoring_service
+            alerts_sent = await budget_monitoring_service.process_budget_alerts_for_user(
+                current_user["id"], bypass_cooldown=False
+            )
+            if alerts_sent > 0:
+                logger.info(
+                    f"Budget alert triggered for user {current_user['id']} after receipt expense in {expense['category']}")
+        except Exception as e:
+            logger.warning(
+                f"Failed to check budget alerts after receipt expense creation: {str(e)}")
+
+        return {
+            "success": True,
+            "expense": expense,
+            "message": "Expense created from receipt successfully"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating expense from receipt: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create expense from receipt: {str(e)}"
+        ) from e
+
+# Manual Budget Check endpoint
+
+
+@app.post("/api/v1/admin/budget-check")
+async def manual_budget_check(current_user: Dict = Depends(get_current_user)):
+    """Manually trigger budget check for all users (admin function)."""
+    try:
+        from services.budget_monitoring_service import budget_monitoring_service
+
+
+        result = await budget_monitoring_service.process_all_budget_alerts()
+
+        return {
+            "success": True,
+            "message": "Budget check completed successfully",
+            "result": result,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error in manual budget check: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to run budget check: {str(e)}"
+        ) from e
+
+
+# Startup event to initialize scheduler
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup."""
+    try:
+        from services.scheduler import scheduler_service
+
+        # Start the budget monitoring scheduler
+        await scheduler_service.start()
+        logger.info("Budget monitoring scheduler initialized")
+
+    except Exception as e:
+        logger.error(f"Error during startup: {str(e)}")
+
+
+# Shutdown event to cleanup
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown."""
+    try:
+        from services.scheduler import scheduler_service
+
+        # Stop the scheduler
+        await scheduler_service.stop()
+        logger.info("Budget monitoring scheduler stopped")
+
+    except Exception as e:
+        logger.error(f"Error during shutdown: {str(e)}")
