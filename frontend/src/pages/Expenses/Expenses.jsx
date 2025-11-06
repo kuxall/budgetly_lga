@@ -12,6 +12,7 @@ import {
 	X,
 } from "lucide-react";
 import ReceiptUpload from "../../components/ui/ReceiptUpload";
+import DataFilters from "../../components/ui/DataFilters";
 import MainLayout from "../../components/layout/MainLayout";
 
 const Expenses = () => {
@@ -38,10 +39,22 @@ const Expenses = () => {
 	const [isGettingSuggestion, setIsGettingSuggestion] = useState(false);
 	const [editingExpense, setEditingExpense] = useState(null);
 	const [editFormData, setEditFormData] = useState({});
+	const [filteredExpenses, setFilteredExpenses] = useState([]);
+	const [activeFilters, setActiveFilters] = useState({});
 
 	useEffect(() => {
 		fetchExpenses();
 	}, [fetchExpenses]);
+
+	// Initialize filtered expenses when expenses change
+	useEffect(() => {
+		setFilteredExpenses(expenses);
+	}, [expenses]);
+
+	const handleFilterChange = (filtered, filters) => {
+		setFilteredExpenses(filtered);
+		setActiveFilters(filters);
+	};
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
@@ -396,12 +409,31 @@ const Expenses = () => {
 					</div>
 				</div>
 
+				{/* Filters */}
+				<DataFilters
+					data={expenses}
+					onFilterChange={handleFilterChange}
+					filterConfig={{
+						showMerchant: true,
+						showPaymentMethod: true,
+						showCategory: true,
+						showDateRange: true,
+						showAmountRange: true,
+						showSearch: true,
+					}}
+				/>
+
 				{/* Expenses List */}
 				<div className="bg-white shadow rounded-lg">
 					<div className="px-4 py-5 sm:p-6">
-						<h4 className="text-lg font-medium text-gray-900 mb-4">
-							Recent Expenses
-						</h4>
+						<div className="flex items-center justify-between mb-4">
+							<h4 className="text-lg font-medium text-gray-900">
+								Recent Expenses
+							</h4>
+							<div className="text-sm text-gray-500">
+								Showing {filteredExpenses.length} of {expenses.length} expenses
+							</div>
+						</div>
 
 						{isLoading ? (
 							<div className="text-center py-4">
@@ -412,9 +444,16 @@ const Expenses = () => {
 							<p className="text-gray-500 text-center py-8">
 								No expenses recorded yet.
 							</p>
+						) : filteredExpenses.length === 0 ? (
+							<div className="text-center py-8">
+								<p className="text-gray-500">No expenses match your current filters.</p>
+								<p className="text-sm text-gray-400 mt-2">
+									Try adjusting your filter criteria to see more results.
+								</p>
+							</div>
 						) : (
 							<div className="space-y-3">
-								{expenses.map((expense) => (
+								{filteredExpenses.map((expense) => (
 									<div
 										key={expense.id}
 										className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"

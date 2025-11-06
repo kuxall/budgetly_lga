@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useBudgetStore } from "../../store/budgetStore";
 import { useExpenseStore } from "../../store/expenseStore";
 import { Trash2, Target, AlertTriangle, Edit2, Save, X } from "lucide-react";
+import DataFilters from "../../components/ui/DataFilters";
 import MainLayout from "../../components/layout/MainLayout";
 
 const Budgets = () => {
@@ -25,10 +26,22 @@ const Budgets = () => {
 
 	const [editingBudget, setEditingBudget] = useState(null);
 	const [editFormData, setEditFormData] = useState({});
+	const [filteredBudgets, setFilteredBudgets] = useState([]);
+	const [activeFilters, setActiveFilters] = useState({});
 
 	useEffect(() => {
 		fetchBudgets();
 	}, [fetchBudgets]);
+
+	// Initialize filtered budgets when budgets change
+	useEffect(() => {
+		setFilteredBudgets(budgets);
+	}, [budgets]);
+
+	const handleFilterChange = (filtered, filters) => {
+		setFilteredBudgets(filtered);
+		setActiveFilters(filters);
+	};
 
 	const handleSubmit = async (e) => {
 		e.preventDefault();
@@ -270,12 +283,32 @@ const Budgets = () => {
 					</div>
 				</div>
 
+				{/* Filters */}
+				<DataFilters
+					data={budgets}
+					onFilterChange={handleFilterChange}
+					filterConfig={{
+						showCategory: true,
+						showAmountRange: true,
+						showSearch: true,
+						showDateRange: false,
+						showPaymentMethod: false,
+						showMerchant: false,
+						showSource: false,
+					}}
+				/>
+
 				{/* Active Budgets */}
 				<div className="bg-white shadow rounded-lg">
 					<div className="px-4 py-5 sm:p-6">
-						<h4 className="text-lg font-medium text-gray-900 mb-4">
-							Active Budgets
-						</h4>
+						<div className="flex items-center justify-between mb-4">
+							<h4 className="text-lg font-medium text-gray-900">
+								Active Budgets
+							</h4>
+							<div className="text-sm text-gray-500">
+								Showing {filteredBudgets.length} of {budgets.length} budgets
+							</div>
+						</div>
 
 						{isLoading ? (
 							<div className="text-center py-4">
@@ -286,9 +319,16 @@ const Budgets = () => {
 							<p className="text-gray-500 text-center py-8">
 								No budgets created yet.
 							</p>
+						) : filteredBudgets.length === 0 ? (
+							<div className="text-center py-8">
+								<p className="text-gray-500">No budgets match your current filters.</p>
+								<p className="text-sm text-gray-400 mt-2">
+									Try adjusting your filter criteria to see more results.
+								</p>
+							</div>
 						) : (
 							<div className="space-y-4">
-								{budgets.map((budget) => {
+								{filteredBudgets.map((budget) => {
 									const { spent, percentage } = getBudgetProgress(budget);
 									const { color, status, iconClass, textClass, bgClass } =
 										getBudgetStatus(percentage);
