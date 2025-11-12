@@ -1,19 +1,19 @@
 import React from 'react';
 
-export const Alert = ({ 
-  children, 
-  variant = 'default', 
-  className = '' 
+export const Alert = ({
+  children,
+  variant = 'default',
+  className = ''
 }) => {
   const getVariantClasses = () => {
     switch (variant) {
       case 'destructive':
-        return 'bg-red-50 border-red-200 text-red-800';
+        return 'bg-danger-50 border-danger-200 text-danger-800';
       case 'warning':
-        return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+        return 'bg-warning-50 border-warning-200 text-warning-800';
       case 'default':
       default:
-        return 'bg-blue-50 border-blue-200 text-blue-800';
+        return 'bg-primary-50 border-primary-200 text-primary-800';
     }
   };
 
