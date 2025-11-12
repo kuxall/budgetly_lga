@@ -166,7 +166,8 @@ const DataFilters = ({
 		}
 
 		onFilterChange(filteredData, filters);
-	}, [data, filters]); // Removed onFilterChange from dependencies
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [data, filters]);
 
 	const handleFilterChange = (filterType, value) => {
 		setFilters((prev) => ({
