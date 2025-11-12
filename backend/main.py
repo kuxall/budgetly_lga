@@ -10,6 +10,7 @@ from services.email_service import email_service
 from services.data_services import data_service
 from services.model_config_service import model_config
 from services.data_validation_service import data_validation_service
+from services.income_budget_service import get_income_budget_service
 from fastapi import FastAPI, HTTPException, Request, status, Depends
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
@@ -672,6 +673,31 @@ async def get_income(current_user: Dict = Depends(get_current_user)):
     return user_income
 
 
+@app.get("/api/v1/income/monthly-average")
+async def get_monthly_average_income(current_user: Dict = Depends(get_current_user)):
+    """Get average monthly income over the last 3 months."""
+    try:
+        income_service = get_income_budget_service(data_service)
+        avg_income = income_service.calculate_average_monthly_income(
+            current_user["id"])
+        current_month_income = income_service.calculate_monthly_income(
+            current_user["id"])
+
+        return {
+            "success": True,
+            "average_monthly_income": avg_income,
+            "current_month_income": current_month_income,
+            "variance": current_month_income - avg_income,
+            "variance_percentage": ((current_month_income - avg_income) / avg_income * 100) if avg_income > 0 else 0
+        }
+    except Exception as e:
+        logger.error(f"Error getting monthly average income: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get monthly average income: {str(e)}"
+        ) from e
+
+
 @app.get("/api/v1/income/{income_id}")
 async def get_income_by_id(income_id: str, current_user: Dict = Depends(get_current_user)):
     """Get specific income record."""
@@ -973,6 +999,45 @@ async def get_budgets(current_user: Dict = Depends(get_current_user)):
 
 
 # Budget Alert endpoints
+
+@app.get("/api/v1/budgets/alerts")
+async def get_budget_alerts(current_user: Dict = Depends(get_current_user)):
+    """Get current budget alerts for user."""
+    try:
+        from services.budget_monitoring_service import budget_monitoring_service
+
+        budget_summary = budget_monitoring_service.get_user_budget_summary(
+            current_user["id"])
+
+        # Convert budget summary to alerts format
+        alerts = []
+        for budget in budget_summary:
+            if budget['percentage'] >= 80:
+                notification_type = 'over_budget' if budget['percentage'] > 100 else 'approaching_limit'
+                alerts.append({
+                    'id': budget['budget_id'],
+                    'budget_id': budget['budget_id'],
+                    'category': budget['category'],
+                    'notification_type': notification_type,
+                    'percentage': budget['percentage'],
+                    'spent': budget['spent'],
+                    'limit': budget['budget_amount'],
+                    'remaining': budget['remaining'],
+                    'period': budget['period']
+                })
+
+        return {
+            "success": True,
+            "alerts": alerts
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting budget alerts: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get budget alerts: {str(e)}"
+        ) from e
+
 
 @app.get("/api/v1/budgets/alerts/check")
 async def check_budget_alerts(current_user: Dict = Depends(get_current_user)):
@@ -1406,6 +1471,98 @@ async def delete_budget(budget_id: str, current_user: Dict = Depends(get_current
         )
 
     return {"message": "Budget deleted successfully"}
+
+
+# Income-Aware Budget Endpoints
+
+@app.get("/api/v1/budgets/income-analysis")
+async def get_income_budget_analysis(current_user: Dict = Depends(get_current_user)):
+    """Get comprehensive income-based budget analysis."""
+    try:
+        income_service = get_income_budget_service(data_service)
+
+        available = income_service.calculate_available_to_budget(
+            current_user["id"])
+        health_score = income_service.calculate_budget_health_score(
+            current_user["id"])
+        recommendations = income_service.get_budget_recommendations(
+            current_user["id"])
+        spending_analysis = income_service.analyze_spending_vs_income(
+            current_user["id"])
+
+        return {
+            "success": True,
+            "available_to_budget": available,
+            "health_score": health_score,
+            "recommendations": recommendations,
+            "spending_analysis": spending_analysis
+        }
+    except Exception as e:
+        logger.error(f"Error getting income budget analysis: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get income budget analysis: {str(e)}"
+        ) from e
+
+
+@app.get("/api/v1/budgets/recommendations")
+async def get_budget_recommendations(current_user: Dict = Depends(get_current_user)):
+    """Get AI-powered budget recommendations based on income."""
+    try:
+        income_service = get_income_budget_service(data_service)
+        recommendations = income_service.get_budget_recommendations(
+            current_user["id"])
+
+        return {
+            "success": True,
+            **recommendations
+        }
+    except Exception as e:
+        logger.error(f"Error getting budget recommendations: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get budget recommendations: {str(e)}"
+        ) from e
+
+
+@app.get("/api/v1/budgets/category-suggestion/{category}")
+async def get_category_budget_suggestion(category: str, current_user: Dict = Depends(get_current_user)):
+    """Get budget suggestion for a specific category based on income."""
+    try:
+        income_service = get_income_budget_service(data_service)
+        suggestion = income_service.get_income_based_budget_suggestions(
+            current_user["id"], category)
+
+        return {
+            "success": True,
+            **suggestion
+        }
+    except Exception as e:
+        logger.error(f"Error getting category budget suggestion: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get category budget suggestion: {str(e)}"
+        ) from e
+
+
+@app.get("/api/v1/budgets/health-score")
+async def get_budget_health_score(current_user: Dict = Depends(get_current_user)):
+    """Get budget health score based on income and spending."""
+    try:
+        income_service = get_income_budget_service(data_service)
+        health_score = income_service.calculate_budget_health_score(
+            current_user["id"])
+
+        return {
+            "success": True,
+            **health_score
+        }
+    except Exception as e:
+        logger.error(f"Error getting budget health score: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get budget health score: {str(e)}"
+        ) from e
 
 
 # Categories API endpoint for AI suggestions
@@ -2526,7 +2683,6 @@ async def manual_budget_check(current_user: Dict = Depends(get_current_user)):
     """Manually trigger budget check for all users (admin function)."""
     try:
         from services.budget_monitoring_service import budget_monitoring_service
-
 
         result = await budget_monitoring_service.process_all_budget_alerts()
 
