@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 
 class ApiError extends Error {
 	constructor(message, status) {
@@ -11,7 +11,6 @@ class ApiError extends Error {
 let authToken = null;
 
 const getAuthHeaders = () => {
-	console.log('Getting auth headers, token exists:', !!authToken);
 	if (authToken) {
 		return {
 			'Authorization': `Bearer ${authToken}`,
@@ -26,7 +25,6 @@ const getAuthHeaders = () => {
 
 
 export const setAuthToken = (token) => {
-	console.log('Setting auth token:', token ? 'Token set' : 'Token cleared');
 	authToken = token;
 };
 
@@ -309,6 +307,14 @@ export const budgetApi = {
 	deleteBudget: async (id) => {
 		const response = await fetch(`${API_BASE_URL}/budgets/${id}`, {
 			method: 'DELETE',
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+
+	getBudgetAlerts: async () => {
+		const response = await fetch(`${API_BASE_URL}/budgets/alerts`, {
+			method: 'GET',
 			headers: getAuthHeaders(),
 		});
 		return handleResponse(response);
