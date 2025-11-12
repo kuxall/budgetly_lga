@@ -85,5 +85,30 @@ export const useIncomeStore = create((set, get) => ({
 	// Clear income (for logout)
 	clearIncome: () => {
 		set({ income: [], isLoading: false, isSubmitting: false });
+	},
+
+	// Get monthly average income
+	fetchMonthlyAverageIncome: async () => {
+		try {
+			const token = localStorage.getItem('auth_token');
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+
+			const response = await fetch(`${API_BASE_URL}/income/monthly-average`, {
+				headers: {
+					'Authorization': `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to fetch monthly average income');
+			}
+
+			const data = await response.json();
+			return data;
+		} catch (error) {
+			console.error('Error fetching monthly average income:', error);
+			throw error;
+		}
 	}
 }));

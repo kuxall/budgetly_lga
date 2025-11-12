@@ -167,7 +167,6 @@ export const useAuthStore = create((set) => ({
 	// Initialize auth on app start
 	initializeAuth: async () => {
 		const { token, user } = getStoredAuth();
-		console.log('initializeAuth called with:', { hasToken: !!token, hasUser: !!user });
 
 		if (token && user) {
 			setAuthToken(token);
@@ -178,8 +177,6 @@ export const useAuthStore = create((set) => ({
 				isAuthenticated: true,
 				isLoading: false,
 			});
-
-			console.log('Auth initialized with stored data');
 		} else {
 			set({
 				user: null,
