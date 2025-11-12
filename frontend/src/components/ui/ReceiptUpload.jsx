@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, Camera, FileText, AlertCircle, CheckCircle, X } from 'lucide-react';
+import { Upload, Camera, AlertCircle, CheckCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const ReceiptUpload = ({ onClose, onExpenseCreated, onReceiptProcessed }) => {
@@ -27,6 +27,7 @@ const ReceiptUpload = ({ onClose, onExpenseCreated, onReceiptProcessed }) => {
 		if (e.dataTransfer.files && e.dataTransfer.files[0]) {
 			handleFile(e.dataTransfer.files[0]);
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	const handleFileInput = (e) => {
@@ -59,7 +60,7 @@ const ReceiptUpload = ({ onClose, onExpenseCreated, onReceiptProcessed }) => {
 			formData.append('file', file);
 
 			const token = localStorage.getItem('auth_token');
-			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 			const response = await fetch(`${API_BASE_URL}/expenses/upload-receipt`, {
 				method: 'POST',
 				headers: {
@@ -106,7 +107,7 @@ const ReceiptUpload = ({ onClose, onExpenseCreated, onReceiptProcessed }) => {
 
 		try {
 			const token = localStorage.getItem('auth_token');
-			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 			const response = await fetch(`${API_BASE_URL}/expenses/create-from-receipt`, {
 				method: 'POST',
 				headers: {
