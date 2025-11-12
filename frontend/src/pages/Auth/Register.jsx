@@ -91,7 +91,7 @@ const Register = () => {
 										name="firstName"
 										type="text"
 										required
-										className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+										className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
 										placeholder="First name"
 										value={formData.firstName}
 										onChange={handleChange}
@@ -112,7 +112,7 @@ const Register = () => {
 										name="lastName"
 										type="text"
 										required
-										className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+										className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
 										placeholder="Last name"
 										value={formData.lastName}
 										onChange={handleChange}
@@ -138,7 +138,7 @@ const Register = () => {
 									type="email"
 									autoComplete="email"
 									required
-									className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+									className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
 									placeholder="Enter your email"
 									value={formData.email}
 									onChange={handleChange}
@@ -163,7 +163,7 @@ const Register = () => {
 									type={showPassword ? "text" : "password"}
 									autoComplete="new-password"
 									required
-									className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+									className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
 									placeholder="Enter your password"
 									value={formData.password}
 									onChange={handleChange}
@@ -199,7 +199,7 @@ const Register = () => {
 									type={showConfirmPassword ? "text" : "password"}
 									autoComplete="new-password"
 									required
-									className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+									className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
 									placeholder="Confirm your password"
 									value={formData.confirmPassword}
 									onChange={handleChange}
@@ -222,7 +222,7 @@ const Register = () => {
 					<button
 						type="submit"
 						disabled={isLoading}
-						className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+						className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
 					>
 						{isLoading ? "Creating account..." : "Create account"}
 					</button>
@@ -245,7 +245,7 @@ const Register = () => {
 							Already have an account?{" "}
 							<Link
 								to="/login"
-								className="font-medium text-blue-600 hover:text-blue-500 transition-colors"
+								className="font-medium text-primary-600 hover:text-primary-500 transition-colors"
 							>
 								Sign in
 							</Link>

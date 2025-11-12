@@ -8,6 +8,14 @@ Budgetly is an intelligent personal finance management platform that uses advanc
 
 ## Key Features
 
+### 🆕 Income-Aware Budgeting (NEW!)
+
+- **Budget Health Score**: Get a 0-100 score evaluating your financial wellness
+- **Smart Recommendations**: AI suggests budget amounts based on your income using the 50/30/20 rule
+- **Auto-Suggest Budgets**: Amounts automatically fill when creating budgets
+- **Spending Trends**: Track income vs expenses over time with savings rate analysis
+- **Available to Budget**: See exactly how much income you have left to allocate
+
 ### 🧾 Smart Receipt Processing
 
 - **OCR Technology**: Upload any receipt image (JPG, PNG, PDF) and extract data automatically
@@ -23,6 +31,7 @@ Budgetly is an intelligent personal finance management platform that uses advanc
 
 ### 💰 Budget Management
 
+- **Income-Based Budgets**: Set budgets that consider your actual income
 - **Category Budgets**: Set limits for different spending categories
 - **Real-time Tracking**: Monitor budget usage with visual indicators
 - **Overspending Alerts**: Get notified when approaching budget limits
@@ -32,6 +41,7 @@ Budgetly is an intelligent personal finance management platform that uses advanc
 - **Spending Trends**: Visualize your spending patterns over time
 - **Category Breakdown**: See where your money goes with detailed charts
 - **Income vs Expenses**: Track your financial position and savings rate
+- **Budget Health Dashboard**: Comprehensive view of your financial wellness
 
 ## Technology Stack
 
@@ -142,6 +152,24 @@ Budgetly uses different AI models optimized for specific tasks:
 - `POST /api/v1/ai/chat` - Chat with AI assistant
 - `GET /api/v1/ai/insights` - Get financial insights
 - `POST /api/v1/receipts/upload` - Upload and process receipts
+
+## What's New in v2.1.0
+
+### 🎉 Income-Aware Budgeting
+
+The biggest update yet! Budgetly now intelligently integrates your income into every budgeting decision:
+
+- **Budget Health Score (0-100)**: Instant evaluation of your financial wellness
+- **50/30/20 Rule Recommendations**: Proven budget allocation strategy (50% needs, 30% wants, 20% savings)
+- **Auto-Suggest Feature**: Budget amounts automatically suggested based on your income
+- **Spending vs Income Trends**: 6-month historical analysis with savings rate tracking
+- **Available to Budget Calculator**: Know exactly how much you can allocate
+
+**Quick Start**: Add income → Add expenses → View Budgets page → See your health score and recommendations!
+
+📖 **Full Documentation**: See [INCOME_AWARE_BUDGETING.md](INCOME_AWARE_BUDGETING.md) for complete details.
+
+---
 
 ## Features in Detail
 
