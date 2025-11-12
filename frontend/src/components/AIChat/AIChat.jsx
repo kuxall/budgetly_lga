@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Bot, X, Minus, Send } from 'lucide-react';
 import aiInsightsService from '../../services/aiInsightsService';
-import './AIChat.css';
 
 const AIChat = () => {
 	const [messages, setMessages] = useState([

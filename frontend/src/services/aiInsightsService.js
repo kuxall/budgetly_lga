@@ -3,7 +3,7 @@
  * Uses the same authentication system as other services
  */
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 
 // Use the same auth token system as the main API service
 let authToken = null;
