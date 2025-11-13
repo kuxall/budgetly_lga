@@ -107,28 +107,10 @@ export const useBudgetStore = create((set, get) => ({
 				const isCurrentMonth = expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
 				const isSameCategory = expense.category === budget.category;
 
-				// Debug logging
-				console.log('Budget Progress Debug:', {
-					budgetId,
-					budgetCategory: budget.category,
-					expenseCategory: expense.category,
-					expenseAmount: expense.amount,
-					expenseDate: expense.date,
-					isCurrentMonth,
-					isSameCategory,
-					matches: isCurrentMonth && isSameCategory
-				});
-
 				return isCurrentMonth && isSameCategory;
 			});
 
 			spent = matchingExpenses.reduce((total, expense) => total + expense.amount, 0);
-
-			console.log('Total spent for budget:', {
-				budgetCategory: budget.category,
-				totalSpent: spent,
-				matchingExpensesCount: matchingExpenses.length
-			});
 		} else if (budget.period === 'weekly') {
 			// Filter expenses for current week and matching category
 			const startOfWeek = new Date(currentDate);
@@ -169,5 +151,102 @@ export const useBudgetStore = create((set, get) => ({
 	// Clear budgets (for logout)
 	clearBudgets: () => {
 		set({ budgets: [], isLoading: false, isSubmitting: false });
+	},
+
+	// Income-aware budget features
+	fetchIncomeBudgetAnalysis: async () => {
+		try {
+			const token = localStorage.getItem('auth_token');
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+
+			const response = await fetch(`${API_BASE_URL}/budgets/income-analysis`, {
+				headers: {
+					'Authorization': `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to fetch income budget analysis');
+			}
+
+			const data = await response.json();
+			return data;
+		} catch (error) {
+			console.error('Error fetching income budget analysis:', error);
+			throw error;
+		}
+	},
+
+	fetchBudgetRecommendations: async () => {
+		try {
+			const token = localStorage.getItem('auth_token');
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+
+			const response = await fetch(`${API_BASE_URL}/budgets/recommendations`, {
+				headers: {
+					'Authorization': `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to fetch budget recommendations');
+			}
+
+			const data = await response.json();
+			return data;
+		} catch (error) {
+			console.error('Error fetching budget recommendations:', error);
+			throw error;
+		}
+	},
+
+	fetchCategoryBudgetSuggestion: async (category) => {
+		try {
+			const token = localStorage.getItem('auth_token');
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+
+			const response = await fetch(`${API_BASE_URL}/budgets/category-suggestion/${encodeURIComponent(category)}`, {
+				headers: {
+					'Authorization': `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to fetch category budget suggestion');
+			}
+
+			const data = await response.json();
+			return data;
+		} catch (error) {
+			console.error('Error fetching category budget suggestion:', error);
+			throw error;
+		}
+	},
+
+	fetchBudgetHealthScore: async () => {
+		try {
+			const token = localStorage.getItem('auth_token');
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+
+			const response = await fetch(`${API_BASE_URL}/budgets/health-score`, {
+				headers: {
+					'Authorization': `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to fetch budget health score');
+			}
+
+			const data = await response.json();
+			return data;
+		} catch (error) {
+			console.error('Error fetching budget health score:', error);
+			throw error;
+		}
 	}
 }));
