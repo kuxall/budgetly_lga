@@ -12,19 +12,21 @@ const Button = ({
 	...props
 }) => {
 	const baseClasses =
-		"inline-flex items-center justify-center rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+		"inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md";
 
 	const variantClasses = {
 		primary:
-			"bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 active:bg-blue-800",
+			"bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500 active:bg-primary-800",
 		secondary:
-			"bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500 active:bg-gray-300",
+			"bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500 active:bg-gray-300 border border-gray-300",
 		success:
-			"bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 active:bg-green-800",
+			"bg-success-600 text-white hover:bg-success-700 focus:ring-success-500 active:bg-success-800",
 		danger:
-			"bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 active:bg-red-800",
+			"bg-danger-600 text-white hover:bg-danger-700 focus:ring-danger-500 active:bg-danger-800",
+		warning:
+			"bg-warning-600 text-white hover:bg-warning-700 focus:ring-warning-500 active:bg-warning-800",
 		ghost:
-			"text-gray-700 hover:bg-gray-100 focus:ring-gray-500 active:bg-gray-200",
+			"text-gray-700 hover:bg-gray-100 focus:ring-gray-500 active:bg-gray-200 shadow-none",
 	};
 
 	const sizeClasses = {

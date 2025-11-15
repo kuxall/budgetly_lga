@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { incomeApi } from '../services/api';
+import { incomeApi, setAuthToken } from '../services/api';
 import toast from 'react-hot-toast';
 
 export const useIncomeStore = create((set, get) => ({
@@ -12,11 +12,13 @@ export const useIncomeStore = create((set, get) => ({
 	fetchIncome: async () => {
 		set({ isLoading: true });
 		try {
-			const income = await incomeApi.getIncome();
-			set({ income, isLoading: false });
+			const response = await incomeApi.getIncome();
+			// Handle both paginated and non-paginated responses
+			const income = response.items || response;
+			set({ income: Array.isArray(income) ? income : [], isLoading: false });
 			return income;
 		} catch (error) {
-			set({ isLoading: false });
+			set({ isLoading: false, income: [] });
 			toast.error(error.message || 'Failed to fetch income');
 			return [];
 		}
@@ -85,5 +87,29 @@ export const useIncomeStore = create((set, get) => ({
 	// Clear income (for logout)
 	clearIncome: () => {
 		set({ income: [], isLoading: false, isSubmitting: false });
+	},
+
+	// Get monthly average income
+	fetchMonthlyAverageIncome: async () => {
+		try {
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+			const token = localStorage.getItem('auth_token');
+
+			const response = await fetch(`${API_BASE_URL}/income/monthly-average`, {
+				headers: {
+					'Authorization': `Bearer ${token}`,
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to fetch monthly average income');
+			}
+
+			const data = await response.json();
+			return data;
+		} catch (error) {
+			throw error;
+		}
 	}
 }));
