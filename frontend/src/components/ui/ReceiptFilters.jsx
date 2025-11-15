@@ -43,11 +43,11 @@ const ReceiptFilters = ({ data, onFilterChange, className = "" }) => {
 	const getPresetButtonClass = (preset, baseColor) => {
 		const isActive = activePreset === preset.id;
 		const colorClasses = {
-			green: isActive ? 'bg-green-100 text-green-800 border-green-300' : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
-			yellow: isActive ? 'bg-yellow-100 text-yellow-800 border-yellow-300' : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100',
-			red: isActive ? 'bg-red-100 text-red-800 border-red-300' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100',
-			orange: isActive ? 'bg-orange-100 text-orange-800 border-orange-300' : 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100',
-			blue: isActive ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100',
+			green: isActive ? 'bg-success-100 text-success-800 border-success-300' : 'bg-success-50 text-success-700 border-success-200 hover:bg-success-100',
+			yellow: isActive ? 'bg-warning-100 text-warning-800 border-warning-300' : 'bg-warning-50 text-warning-700 border-warning-200 hover:bg-warning-100',
+			red: isActive ? 'bg-danger-100 text-danger-800 border-danger-300' : 'bg-danger-50 text-danger-700 border-danger-200 hover:bg-danger-100',
+			orange: isActive ? 'bg-warning-100 text-warning-800 border-warning-300' : 'bg-warning-50 text-warning-700 border-warning-200 hover:bg-warning-100',
+			blue: isActive ? 'bg-primary-100 text-primary-800 border-primary-300' : 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100',
 			gray: isActive ? 'bg-gray-100 text-gray-800 border-gray-300' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
 		};
 
@@ -96,7 +96,7 @@ const ReceiptFilters = ({ data, onFilterChange, className = "" }) => {
 								setActivePreset(null);
 								onFilterChange(data, {});
 							}}
-							className="text-sm text-blue-600 hover:text-blue-800"
+							className="text-sm text-primary-600 hover:text-primary-800"
 						>
 							Clear all filters
 						</button>

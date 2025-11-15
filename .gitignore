@@ -349,11 +349,24 @@ Pipfile.lock
 # Test files
 test_*.py
 test_upload.py
-INSTALL_POPPLER.md
 
 # Additional Python cache (project specific)
 models/__pycache__/
 models/__init__.pyc
 
+# Postman Collections (API Testing)
+*.postman_collection.json
+*.postman_environment.json
 
 receipts/
+
+API_ENDPOINTS_SUMMARY.md 
+API_TESTING_INDEX.md
+POSTMAN_COLLECTIONS_README.md 
+POSTMAN_GUIDE.md 
+PROJECT_COMPLETION_CHECKLIST.md
+QUICK_START_POSTMAN.md
+ARCHITECTURE_DOCUMENTATION.md
+sequence-diagrams
+sequence-diagrams-simplified
+Final
