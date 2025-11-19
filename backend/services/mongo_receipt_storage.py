@@ -3,12 +3,15 @@ MongoDB-based receipt storage backend for persistent 24-hour receipt storage.
 """
 
 import os
+import logging
 from datetime import datetime
 from typing import Dict, Optional, List
 from motor.motor_asyncio import AsyncIOMotorClient
 import asyncio
 import threading
 import certifi
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 try:
@@ -86,7 +89,7 @@ class MongoReceiptStorage:
                 await self._receipts_collection.insert_one(receipt_record)
                 return True
             except Exception as e:
-                print(f"Error saving receipt to MongoDB: {str(e)}")
+                logger.error(f"Error saving receipt to MongoDB: {str(e)}")
                 return False
 
         return self._run_async(_save())
@@ -101,7 +104,7 @@ class MongoReceiptStorage:
                     receipt.pop("_id", None)
                 return receipt
             except Exception as e:
-                print(f"Error getting receipt from MongoDB: {str(e)}")
+                logger.error(f"Error getting receipt from MongoDB: {str(e)}")
                 return None
 
         return self._run_async(_get())

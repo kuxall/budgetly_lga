@@ -56,7 +56,7 @@ class SettingsService:
             data_service.save_user(user_id, user)
 
             # Get settings and return updated response
-            user_settings = self.settings_db.get(user_id, {})
+            user_settings = user.get("settings", {})
             return self._format_settings_response(user, user_settings)
 
         except Exception as e:
@@ -252,15 +252,13 @@ class SettingsService:
                     days_active = 0
 
             # Count user's expenses
-            user_expenses = [
-                exp for exp in data_service.expenses_db
-                if exp.get("user_id") == user_id
-            ]
+            user_expenses = data_service.get_expenses_by_user(user_id)
             total_expenses = len(user_expenses)
 
             # Analyze receipt statistics
+            # Count expenses that have a receipt_token (created from receipts)
             receipts_with_data = [
-                exp for exp in user_expenses if exp.get("receipt_data")
+                exp for exp in user_expenses if exp.get("receipt_token")
             ]
 
             # Count receipt processing - ALL receipts are auto-processed
@@ -269,20 +267,18 @@ class SettingsService:
             auto_processed = receipts_processed  # ALL receipts are auto-processed
             manual_review = 0  # No manual review - everything is auto
 
-            # Calculate storage used (more accurate with image storage service)
+            # Calculate storage used by getting all user receipts
             storage_bytes = 0
             try:
-                from services.image_storage_service import image_storage
-                user_images_stats = image_storage.get_user_images(user_id)
-                storage_bytes = user_images_stats.get('total_size', 0)
-            except Exception:
-                # Fallback to estimation if image storage service fails
-                for expense in receipts_with_data:
-                    receipt_data = expense.get("receipt_data", {})
-                    if receipt_data:
-                        # Rough estimate: JSON data + estimated image size
-                        # ~50KB per receipt estimate
-                        storage_bytes += len(str(receipt_data)) + 50000
+                from services.image_storage_service import persistent_storage
+                user_receipts = persistent_storage.list_user_receipts(user_id)
+                # Estimate storage: ~100KB per receipt (image + metadata)
+                storage_bytes = len(user_receipts) * 100000
+            except Exception as e:
+                logger.warning(f"Failed to get storage stats: {e}")
+                # Fallback: estimate based on expenses with receipts
+                # ~100KB per receipt estimate
+                storage_bytes = len(receipts_with_data) * 100000
 
             # Convert to human readable format
             if storage_bytes < 1024:

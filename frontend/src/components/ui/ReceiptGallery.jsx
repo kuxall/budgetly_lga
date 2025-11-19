@@ -32,6 +32,7 @@ const ReceiptGallery = ({
 		} else {
 			loadReceipts();
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [propReceipts, propLoading]);
 
 	const loadReceipts = async () => {
@@ -39,7 +40,7 @@ const ReceiptGallery = ({
 
 		try {
 			const token = localStorage.getItem('auth_token');
-			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 			const response = await fetch(`${API_BASE_URL}/receipts/list`, {
 				headers: {
 					'Authorization': `Bearer ${token}`
@@ -63,7 +64,7 @@ const ReceiptGallery = ({
 	const handleViewImage = async (receipt) => {
 		try {
 			const token = localStorage.getItem('auth_token');
-			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 			const response = await fetch(`${API_BASE_URL}/receipts/image/${receipt.token}`, {
 				headers: {
 					'Authorization': `Bearer ${token}`
@@ -94,7 +95,7 @@ const ReceiptGallery = ({
 
 		try {
 			const token = localStorage.getItem('auth_token');
-			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 			const response = await fetch(`${API_BASE_URL}/receipts/image/${receipt.token}`, {
 				method: 'DELETE',
 				headers: {
@@ -118,7 +119,7 @@ const ReceiptGallery = ({
 	const handleAddExpenseFromReceipt = async (receipt) => {
 		try {
 			const token = localStorage.getItem('auth_token');
-			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 			const response = await fetch(`${API_BASE_URL}/expenses/create-from-receipt`, {
 				method: 'POST',
 				headers: {

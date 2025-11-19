@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
+import { fetchWithRetry, RetryPresets } from './retry';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 
 class ApiError extends Error {
 	constructor(message, status) {
@@ -8,10 +10,37 @@ class ApiError extends Error {
 	}
 }
 
+// Enable retry for GET requests by default
+const shouldUseRetry = (method = 'GET') => {
+	return ['GET', 'HEAD'].includes(method.toUpperCase());
+};
+
 let authToken = null;
 
+// Initialize token from localStorage on module load
+const initializeToken = () => {
+	try {
+		const token = localStorage.getItem('auth_token');
+		if (token) {
+			authToken = token;
+		}
+	} catch (error) {
+		// Ignore localStorage errors
+	}
+};
+
+initializeToken();
+
 const getAuthHeaders = () => {
-	console.log('Getting auth headers, token exists:', !!authToken);
+	// Fallback to localStorage if token not set in memory
+	if (!authToken) {
+		try {
+			authToken = localStorage.getItem('auth_token');
+		} catch (error) {
+			// Ignore localStorage errors
+		}
+	}
+
 	if (authToken) {
 		return {
 			'Authorization': `Bearer ${authToken}`,
@@ -23,11 +52,30 @@ const getAuthHeaders = () => {
 	};
 };
 
-
-
 export const setAuthToken = (token) => {
-	console.log('Setting auth token:', token ? 'Token set' : 'Token cleared');
 	authToken = token;
+	if (token) {
+		try {
+			localStorage.setItem('auth_token', token);
+		} catch (error) {
+			// Ignore localStorage errors
+		}
+	} else {
+		try {
+			localStorage.removeItem('auth_token');
+		} catch (error) {
+			// Ignore localStorage errors
+		}
+	}
+};
+
+export const clearAuthToken = () => {
+	authToken = null;
+	try {
+		localStorage.removeItem('auth_token');
+	} catch (error) {
+		// Ignore localStorage errors
+	}
 };
 
 const handleResponse = async (response) => {
@@ -36,6 +84,27 @@ const handleResponse = async (response) => {
 		throw new ApiError(errorData.detail || 'An error occurred', response.status);
 	}
 	return response.json();
+};
+
+// Helper to merge options with signal
+const mergeOptions = (options, signal) => {
+	if (signal) {
+		return { ...options, signal };
+	}
+	return options;
+};
+
+// Wrapper for fetch with retry logic
+const fetchWithRetryWrapper = async (url, options = {}) => {
+	const method = options.method || 'GET';
+
+	// Use retry for safe methods (GET, HEAD)
+	if (shouldUseRetry(method)) {
+		return fetchWithRetry(url, options, RetryPresets.standard);
+	}
+
+	// No retry for unsafe methods (POST, PUT, DELETE)
+	return fetch(url, options);
 };
 
 
@@ -236,11 +305,14 @@ export const incomeApi = {
 
 // Expense API
 export const expenseApi = {
-	getExpenses: async () => {
-		const response = await fetch(`${API_BASE_URL}/expenses`, {
-			method: 'GET',
-			headers: getAuthHeaders(),
-		});
+	getExpenses: async (page = 1, pageSize = 1000, signal = null) => {
+		const response = await fetchWithRetryWrapper(
+			`${API_BASE_URL}/expenses?page=${page}&page_size=${pageSize}`,
+			mergeOptions({
+				method: 'GET',
+				headers: getAuthHeaders(),
+			}, signal)
+		);
 		return handleResponse(response);
 	},
 
@@ -309,6 +381,14 @@ export const budgetApi = {
 	deleteBudget: async (id) => {
 		const response = await fetch(`${API_BASE_URL}/budgets/${id}`, {
 			method: 'DELETE',
+			headers: getAuthHeaders(),
+		});
+		return handleResponse(response);
+	},
+
+	getBudgetAlerts: async () => {
+		const response = await fetch(`${API_BASE_URL}/budgets/alerts`, {
+			method: 'GET',
 			headers: getAuthHeaders(),
 		});
 		return handleResponse(response);

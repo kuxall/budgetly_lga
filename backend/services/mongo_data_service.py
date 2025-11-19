@@ -189,6 +189,16 @@ class MongoDataService:
         await self.delete_one("reset_tokens", {"token": token})
         return True
 
+    # Used reset tokens tracking
+    async def add_used_reset_token(self, token_data: Dict):
+        """Store used reset token to prevent reuse."""
+        await self.insert_one("used_reset_tokens", token_data)
+
+    async def is_reset_token_used(self, token: str) -> bool:
+        """Check if reset token has been used."""
+        result = await self.find_one("used_reset_tokens", {"token": token})
+        return result is not None
+
     def _sanitize_doc(self, doc: Any) -> Any:
         """Recursively convert ObjectId and datetime to JSON-serializable types."""
         if isinstance(doc, dict):
@@ -332,3 +342,9 @@ class MongoDataServiceSyncWrapper:
 
     def delete_reset_token(self, token: str) -> bool:
         return self._run(self._async.delete_reset_token(token))
+
+    def add_used_reset_token(self, token_data: Dict):
+        return self._run(self._async.add_used_reset_token(token_data))
+
+    def is_reset_token_used(self, token: str) -> bool:
+        return self._run(self._async.is_reset_token_used(token))

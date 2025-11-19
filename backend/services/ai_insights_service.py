@@ -3,15 +3,13 @@ import os
 import json
 import statistics
 import asyncio
+import logging
 from datetime import datetime, timedelta
 from collections import defaultdict
 from typing import Dict, List, Any, Optional
 import httpx
-import logging
 from .model_config_service import model_config
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -121,117 +119,123 @@ class AIInsightsService:
 
     def _create_chat_system_prompt(self, user_context: Dict[str, Any] = None) -> str:
         """Create a context-aware system prompt for chat functionality."""
-        base_prompt = """You are SavI, a concise, data-driven financial advisor. Follow these rules:
-        
-        RESPONSE STYLE:
-        - Keep responses SHORT (5 sentences max for general questions)
-        - Be direct and actionable
-        - Use bullet points for multiple suggestions
-        - Avoid lengthy explanations unless specifically asked
+        base_prompt = """You are SavI, a concise, data-driven financial advisor.
 
-        PERSONALIZATION RULES:
-        - ALWAYS prioritize user's actual financial data when available
-        - For questions about their spending/budgeting: Use their real data extensively
-        - For general financial questions: Give brief, practical advice
-        - If no relevant user data: Keep response to 3-5 sentences maximum
+RESPONSE STYLE
+- Max 5 sentences for general questions (3–5 if no user data)
+- Be direct and actionable, avoid fluff
+- Use bullet points for multiple suggestions
+- Only give long explanations if the user explicitly asks
 
-        TONE:
-        - Friendly but professional
-        - Encouraging and supportive
-        - Focus on practical next steps"""
+PERSONALIZATION
+- Always prioritize the user's real financial data when available
+- For questions about spending/budgets, reference their actual numbers (amounts, categories, merchants, dates)
+- For general finance questions, give brief, practical advice
+
+TONE
+- Friendly, professional, and supportive
+- Focus on clear next steps the user can take now"""
 
         if user_context:
             context_info = []
 
-            # Build detailed financial profile
-            if user_context.get('total_expenses'):
+            # Core aggregates
+            if user_context.get("total_expenses"):
                 context_info.append(
                     f"Total expenses: ${user_context['total_expenses']:.2f}")
-
-            if user_context.get('total_income'):
+            if user_context.get("total_income"):
                 context_info.append(
                     f"Total income: ${user_context['total_income']:.2f}")
-                net_position = user_context['total_income'] - \
-                    user_context.get('total_expenses', 0)
+                net_position = user_context["total_income"] - \
+                    user_context.get("total_expenses", 0)
                 context_info.append(f"Net position: ${net_position:.2f}")
-
-            if user_context.get('top_categories'):
+            if user_context.get("top_categories"):
                 top_cats = ", ".join(
-                    [f"{cat}: ${amt:.0f}" for cat, amt in user_context['top_categories'][:3]])
-                context_info.append(f"Top spending: {top_cats}")
-
-            if user_context.get('budget_count'):
+                    f"{cat}: ${amt:.0f}" for cat, amt in user_context["top_categories"][:3]
+                )
+                context_info.append(f"Top spending categories: {top_cats}")
+            if user_context.get("budget_count"):
                 context_info.append(
                     f"Active budgets: {user_context['budget_count']}")
-
-            if user_context.get('expense_count'):
+            if user_context.get("expense_count"):
                 context_info.append(
                     f"Total transactions: {user_context['expense_count']}")
-
-            if user_context.get('recent_expenses'):
+            if user_context.get("recent_expenses"):
                 context_info.append(
-                    f"Recent expenses (last 30 days): ${user_context['recent_expenses']:.2f}")
-
-            if user_context.get('avg_transaction'):
+                    f"Recent expenses (last 30 days): ${user_context['recent_expenses']:.2f}"
+                )
+            if user_context.get("avg_transaction"):
                 context_info.append(
-                    f"Average transaction: ${user_context['avg_transaction']:.2f}")
-
-            if user_context.get('top_merchant'):
+                    f"Average transaction: ${user_context['avg_transaction']:.2f}"
+                )
+            if user_context.get("top_merchant"):
                 context_info.append(
                     f"Most frequent merchant: {user_context['top_merchant']}")
 
             # Budget analysis
-            if user_context.get('budget_analysis'):
+            if user_context.get("budget_analysis"):
                 over_budget = [
-                    b for b in user_context['budget_analysis'] if b['status'] == 'over']
+                    b for b in user_context["budget_analysis"] if b["status"] == "over"]
                 under_budget = [
-                    b for b in user_context['budget_analysis'] if b['status'] == 'under']
+                    b for b in user_context["budget_analysis"] if b["status"] == "under"]
 
                 if over_budget:
                     over_cats = ", ".join(
-                        [f"{b['category']} (${b['over_under']:.0f} over)" for b in over_budget[:2]])
+                        f"{b['category']} (${b['over_under']:.0f} over)" for b in over_budget[:2]
+                    )
                     context_info.append(f"Over budget: {over_cats}")
-
                 if under_budget:
                     under_cats = ", ".join(
-                        [f"{b['category']} (${abs(b['over_under']):.0f} under)" for b in under_budget[:2]])
+                        f"{b['category']} (${abs(b['over_under']):.0f} under)" for b in under_budget[:2]
+                    )
                     context_info.append(f"Under budget: {under_cats}")
 
-            # Receipt and item-level data
-            if user_context.get('receipt_count'):
+            # Receipt / item-level data
+            if user_context.get("receipt_count"):
                 context_info.append(
                     f"Receipts processed: {user_context['receipt_count']}")
-
-            if user_context.get('total_items_purchased'):
+            if user_context.get("total_items_purchased"):
                 context_info.append(
-                    f"Individual items tracked: {user_context['total_items_purchased']}")
-
-            if user_context.get('top_purchased_items'):
+                    f"Items tracked: {user_context['total_items_purchased']}"
+                )
+            if user_context.get("top_purchased_items"):
                 top_items = ", ".join(
-                    [f"{item[0]} ({item[1]}x)" for item in user_context['top_purchased_items'][:3]])
+                    f"{item[0]} ({item[1]}x)" for item in user_context["top_purchased_items"][:3]
+                )
                 context_info.append(f"Most purchased items: {top_items}")
-
-            if user_context.get('highest_spending_items'):
+            if user_context.get("highest_spending_items"):
                 top_spend_items = ", ".join(
-                    [f"{item[0]} (${item[1]:.0f})" for item in user_context['highest_spending_items'][:3]])
+                    f"{item[0]} (${item[1]:.0f})"
+                    for item in user_context["highest_spending_items"][:3]
+                )
                 context_info.append(
                     f"Highest spending items: {top_spend_items}")
-
-            if user_context.get('recent_items_count'):
+            if user_context.get("recent_items_count"):
                 context_info.append(
-                    f"Recent items (30 days): {user_context['recent_items_count']} items, ${user_context.get('recent_items_spending', 0):.2f}")
+                    f"Recent items (30 days): {user_context['recent_items_count']} items, "
+                    f"${user_context.get('recent_items_spending', 0):.2f}"
+                )
 
             if context_info:
-                base_prompt += f"\n\nUSER'S ACTUAL DATA:\n• " + \
+                base_prompt += "\n\nUSER DATA SNAPSHOT:\n• " + \
                     "\n• ".join(context_info)
 
-                # Add item-level query capability
-                if user_context.get('recent_items'):
-                    base_prompt += f"\n\nITEM-LEVEL DATA AVAILABLE: You have access to detailed purchase data including specific items, quantities, prices, and merchants. For questions about specific products (like 'How much did I spend on tomatoes?' or 'Where did I buy milk?'), search through the recent_items data to provide exact answers."
+                if user_context.get("recent_items"):
+                    base_prompt += (
+                        "\n\nITEM-LEVEL DATA AVAILABLE:\n"
+                        "- You have detailed item history (name, quantity, price, merchant, date).\n"
+                        "- For questions like “How much did I spend on tomatoes?” or “Where did I buy milk?”, "
+                        "search recent_items and answer with exact numbers."
+                    )
 
-                base_prompt += f"\n\nIMPORTANT: Use this real data to give specific, personalized advice. Reference actual numbers, categories, and items when relevant to their question. For general questions not related to their data, keep responses to 5 sentences max."
+                base_prompt += (
+                    "\n\nIMPORTANT:\n"
+                    "- Always ground advice in this data when relevant.\n"
+                    "- Quote specific amounts, categories, and merchants.\n"
+                    "- For questions not tied to the user's data, keep responses short (max 5 sentences)."
+                )
         else:
-            base_prompt += "\n\nNo user financial data available. Keep responses brief and general."
+            base_prompt += "\n\nNo user financial data is available. Give short, general, practical answers."
 
         return base_prompt
 
@@ -287,8 +291,8 @@ class AIInsightsService:
             payload = {
                 "model": fallback_model,
                 "messages": messages,
-                "max_tokens": 1500,  
-                "temperature": 0.3,  
+                "max_tokens": 1500,
+                "temperature": 0.3,
                 "stream": False
             }
 
@@ -321,7 +325,7 @@ class AIInsightsService:
         }
 
         payload = {
-            "model": self.insights_model,  
+            "model": self.insights_model,
             "messages": messages,
             "max_tokens": self.max_tokens,
             "stream": False
@@ -628,25 +632,26 @@ class AIInsightsService:
 
     def _create_optimized_prompt(self, data: Dict) -> str:
         """Create an optimized, focused prompt for better AI responses."""
-        # Summarize key data points
         budget_summary = ""
-        if data.get('budgets'):
-            budget_summary = f"\nBUDGETS: {len(data['budgets'])} budgets set"
+        if data.get("budgets"):
+            budget_summary = f"\n• Budgets: {len(data['budgets'])} active"
 
         top_categories_str = ", ".join(
-            [f"{cat}: ${amt:.0f}" for cat, amt in data['top_categories'][:3]])
+            f"{cat}: ${amt:.0f}" for cat, amt in data["top_categories"][:3]
+        )
 
-        return f"""As SavI, a financial advisor, analyze this spending data and provide actionable insights in JSON format:
+        return f"""You are SavI, an expert financial advisor. Analyze the user's spending and return ONLY valid JSON.
 
-FINANCIAL SUMMARY:
+FINANCIAL SUMMARY
 • Total Expenses: ${data['total_expenses']:.2f}
 • Total Income: ${data['total_income']:.2f}
 • Net Position: ${data['net_income']:.2f}
-• Transactions: {data['expense_count']} total, {data['recent_expense_count']} recent
+• Transactions: {data['expense_count']} total, {data['recent_expense_count']} in last 30 days
 • Top Categories: {top_categories_str}
 • Average Transaction: ${data['average_transaction']:.2f}{budget_summary}
 
-Provide analysis in this exact JSON structure:
+Respond in EXACTLY this JSON shape (no extra fields, no prose outside JSON):
+
 {{
   "financial_health": {{
     "score": 85,
@@ -655,19 +660,21 @@ Provide analysis in this exact JSON structure:
   }},
   "key_insights": [
     "Most important spending insight",
-    "Second key observation", 
+    "Second key observation",
     "Third notable pattern"
   ],
-  "recommendations": [{{
-    "title": "Specific Action",
-    "description": "Clear explanation",
-    "impact": "High",
-    "savings_potential": 150.00
-  }}],
+  "recommendations": [
+    {{
+      "title": "Specific Action",
+      "description": "Clear explanation",
+      "impact": "High",
+      "savings_potential": 150.00
+    }}
+  ],
   "spending_analysis": {{
     "top_concern": "Biggest spending issue",
-    "positive_trend": "What they're doing well",
-    "optimization_area": "Area for improvement"
+    "positive_trend": "What they are doing well",
+    "optimization_area": "Main area to improve"
   }},
   "next_month_prediction": {{
     "estimated_spending": {data['average_monthly']:.2f},
@@ -676,14 +683,14 @@ Provide analysis in this exact JSON structure:
   }}
 }}
 
-Focus on:
-1. Actionable, specific advice
-2. Realistic savings opportunities  
-3. Spending pattern insights
-4. Budget optimization
-5. Financial goal progress
+FOCUS ON:
+- Concrete, actionable recommendations
+- Realistic savings opportunities with rough amounts
+- Clear patterns in spending and categories
+- How to optimize budgets and habits
+- Progress toward better financial health
 
-Return ONLY valid JSON."""
+Return ONLY JSON, no markdown or explanations."""
 
     async def _call_openai_api(self, prompt: str, max_retries: int = 2) -> str:
         """Optimized OpenAI API call with better error handling."""
@@ -911,25 +918,25 @@ Return ONLY valid JSON."""
     def prepare_prompt(self, metrics: Dict[str, Any]) -> str:
         """Prepare the AI prompt with calculated metrics."""
 
-        prompt = f"""As SavI, a financial advisor, analyze this spending data and provide actionable insights:
+        prompt = f"""You are SavI, an expert financial advisor. Analyze the user's data and return ONLY valid JSON.
 
-FINANCIAL SUMMARY:
+FINANCIAL SUMMARY
 • Total Expenses: ${metrics['total_expenses']:.2f}
 • Total Income: ${metrics['total_income']:.2f}
 • Net Position: ${metrics['net_income']:.2f}
 • Transactions: {metrics['expense_count']} total, {metrics['recent_expense_count']} recent
 • Top Categories: {metrics['top_categories_summary']}
 • Average Transaction: ${metrics['average_transaction']:.2f}
-• BUDGETS: {metrics['budget_count']} budgets set
+• Budgets: {metrics['budget_count']} active
 
-DETAILED DATA:
-• Category Breakdown: {', '.join([f'{cat}: ${amt:.0f}' for cat, amt in metrics['category_breakdown'].items()])}
+DETAILS
+• Category Breakdown: {', '.join(f'{cat}: ${amt:.0f}' for cat, amt in metrics['category_breakdown'].items())}
 • Top Merchants: {metrics['top_merchants_list']}
-• Recent Spending Trend: {metrics['recent_trend_description']}
-• Spending Consistency Score: {metrics['consistency_score']:.1f} ({metrics['consistency_description']})
+• Recent Trend: {metrics['recent_trend_description']}
+• Consistency Score: {metrics['consistency_score']:.1f} ({metrics['consistency_description']})
 • Monthly Average: ${metrics['monthly_average']:.2f} ({metrics['current_vs_average']})
 
-Provide analysis in this exact JSON structure:
+Use this exact JSON schema:
 
 {{
   "financial_health": {{
@@ -939,19 +946,21 @@ Provide analysis in this exact JSON structure:
   }},
   "key_insights": [
     "Most important spending insight",
-    "Second key observation", 
+    "Second key observation",
     "Third notable pattern"
   ],
-  "recommendations": [{{
-    "title": "Specific Action",
-    "description": "Clear explanation",
-    "impact": "High",
-    "savings_potential": 150.00
-  }}],
+  "recommendations": [
+    {{
+      "title": "Specific Action",
+      "description": "Clear explanation",
+      "impact": "High",
+      "savings_potential": 150.00
+    }}
+  ],
   "spending_analysis": {{
     "top_concern": "Biggest spending issue",
-    "positive_trend": "What they're doing well",
-    "optimization_area": "Area for improvement"
+    "positive_trend": "What they are doing well",
+    "optimization_area": "Main area to improve"
   }},
   "next_month_prediction": {{
     "estimated_spending": {metrics['predicted_amount']:.2f},
@@ -960,15 +969,7 @@ Provide analysis in this exact JSON structure:
   }}
 }}
 
-Focus on:
-1. Actionable, specific advice
-2. Realistic savings opportunities  
-3. Spending pattern insights
-4. Budget optimization
-5. Financial goal progress
-
-Return ONLY valid JSON."""
-
+Focus on specific, realistic actions and savings. Return ONLY JSON."""
         return prompt
 
     async def generate_insights(self, prompt: str) -> Dict[str, Any]:
@@ -1232,19 +1233,27 @@ Return ONLY valid JSON."""
             return self._get_fallback_tips(category, amount_range)
 
         try:
-            prompt = f"""Provide 5 practical financial tips for {"general budgeting" if not category else f"{category} spending"}{"" if not amount_range else f" for someone with {amount_range} budget"}. 
-            
-            Format as JSON:
-            {{
-              "tips": [
-                {{"title": "Tip Title", "description": "Detailed explanation", "difficulty": "Easy/Medium/Hard"}},
-                ...
-              ],
-              "category": "{category or 'general'}",
-              "focus_area": "Main focus of these tips"
-            }}
-            
-            Make tips actionable and specific."""
+            scope = "general budgeting" if not category else f"{category} spending"
+            budget_part = "" if not amount_range else f" for someone with a {amount_range} budget"
+
+            prompt = f"""You are SavI, a practical financial coach.
+
+Provide 5 concrete tips for {scope}{budget_part}.
+Return ONLY JSON in this exact format:
+
+{{
+  "tips": [
+    {{
+      "title": "Short tip title",
+      "description": "Specific, practical explanation (1-2 sentences)",
+      "difficulty": "Easy"  // or "Medium" or "Hard"
+    }}
+  ],
+  "category": "{category or 'general'}",
+  "focus_area": "Main focus of these tips"
+}}
+
+Make each tip actionable, not generic. No markdown, no extra text outside JSON."""
 
             response = await asyncio.wait_for(
                 self._call_openai_api(prompt),

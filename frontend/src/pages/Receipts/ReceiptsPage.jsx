@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import ReceiptGallery from '../../components/ui/ReceiptGallery';
 import ReceiptFilters from '../../components/ui/ReceiptFilters';
-import MainLayout from '../../components/layout/MainLayout';
 import toast from 'react-hot-toast';
 
 const ReceiptsPage = () => {
@@ -21,7 +20,7 @@ const ReceiptsPage = () => {
 	const loadReceipts = async () => {
 		try {
 			const token = localStorage.getItem('auth_token');
-			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
+			const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 			const response = await fetch(`${API_BASE_URL}/receipts/list`, {
 				headers: {
 					'Authorization': `Bearer ${token}`
@@ -66,34 +65,32 @@ const ReceiptsPage = () => {
 	};
 
 	return (
-		<MainLayout>
-			<div className="space-y-6">
-				<div className="border-b border-gray-200 pb-5">
-					<h3 className="text-lg font-medium leading-6 text-gray-900">Receipts</h3>
-					<p className="mt-2 max-w-4xl text-sm text-gray-500">
-						View and manage your uploaded receipts.
-					</p>
-				</div>
-
-				{/* Receipt Filters - Confidence-based + Advanced */}
-				{!loading && receipts.length > 0 && (
-					<ReceiptFilters
-						data={receipts}
-						onFilterChange={handleFilterChange}
-					/>
-				)}
-
-				{/* Receipt Gallery */}
-				<ReceiptGallery
-					key={refreshKey}
-					receipts={filteredReceipts}
-					loading={loading}
-					onAddExpense={handleAddExpense}
-					showCount={true}
-					totalCount={receipts.length}
-				/>
+		<div className="space-y-6">
+			<div className="border-b border-gray-200 pb-5">
+				<h3 className="text-lg font-medium leading-6 text-gray-900">Receipts</h3>
+				<p className="mt-2 max-w-4xl text-sm text-gray-500">
+					View and manage your uploaded receipts.
+				</p>
 			</div>
-		</MainLayout>
+
+			{/* Receipt Filters - Confidence-based + Advanced */}
+			{!loading && receipts.length > 0 && (
+				<ReceiptFilters
+					data={receipts}
+					onFilterChange={handleFilterChange}
+				/>
+			)}
+
+			{/* Receipt Gallery */}
+			<ReceiptGallery
+				key={refreshKey}
+				receipts={filteredReceipts}
+				loading={loading}
+				onAddExpense={handleAddExpense}
+				showCount={true}
+				totalCount={receipts.length}
+			/>
+		</div>
 	);
 };
 

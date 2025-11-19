@@ -10,7 +10,12 @@ from services.email_service import email_service
 from services.data_services import data_service
 from services.model_config_service import model_config
 from services.data_validation_service import data_validation_service
+from services.income_budget_service import get_income_budget_service
+from services.rate_limiter import rate_limiter, get_client_identifier
+from services.input_sanitizer import input_sanitizer, EXPENSE_SCHEMA, INCOME_SCHEMA, BUDGET_SCHEMA, USER_SCHEMA
+from services.pagination import paginate_list, get_pagination_params
 from fastapi import FastAPI, HTTPException, Request, status, Depends
+from fastapi.responses import StreamingResponse
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -24,18 +29,19 @@ import bcrypt
 import json
 import logging
 import base64
+import io
+import zipfile
 
 # Load environment variables
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
-    print("python-dotenv not installed. Using system environment variables.")
+    logger.info(
+        "python-dotenv not installed. Using system environment variables.")
 
 
 logger = logging.getLogger(__name__)
-
-# Import services
 
 app = FastAPI(
     title="Budgetly API",
@@ -44,7 +50,14 @@ app = FastAPI(
 )
 
 # Configuration
-JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    logger.critical(
+        "JWT_SECRET environment variable is not set! This is a security risk.")
+    raise ValueError(
+        "JWT_SECRET must be set in environment variables. "
+        "Generate a secure secret with: python -c 'import secrets; logger.info(secrets.token_urlsafe(32))'"
+    )
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
@@ -52,7 +65,7 @@ allowed_origins = os.getenv(
     "ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -139,10 +152,26 @@ def validate_reset_token(token: str) -> Optional[str]:
 
 
 def mark_reset_token_used(token: str) -> None:
-    """Mark reset token as used (placeholder - in production, store used tokens)."""
-    # In production, you'd store used tokens in a database or cache
-    # to prevent token reuse
-    pass
+    """Mark reset token as used to prevent reuse."""
+    try:
+        # Store used token in database with expiry
+        token_data = {
+            "token": token,
+            "used_at": datetime.utcnow().isoformat(),
+            "expires_at": (datetime.utcnow() + timedelta(hours=24)).isoformat()
+        }
+        data_service.add_used_reset_token(token_data)
+    except Exception as e:
+        logger.error(f"Failed to mark reset token as used: {str(e)}")
+
+
+def is_reset_token_used(token: str) -> bool:
+    """Check if reset token has already been used."""
+    try:
+        return data_service.is_reset_token_used(token)
+    except Exception as e:
+        logger.error(f"Failed to check reset token status: {str(e)}")
+        return False
 
 # Auth endpoints
 
@@ -171,6 +200,19 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 @app.post("/api/v1/auth/login")
 async def login(request: Request):
     """Login user."""
+    # Rate limiting - 5 login attempts per 15 minutes
+    client_id = get_client_identifier(request)
+    is_allowed, remaining, retry_after = rate_limiter.check_rate_limit(
+        f"login:{client_id}", max_requests=5, window_seconds=900
+    )
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many login attempts. Try again in {retry_after} seconds.",
+            headers={"Retry-After": str(retry_after)}
+        )
+
     data = await request.json()
 
     # Validate required fields
@@ -217,7 +259,23 @@ async def login(request: Request):
 @app.post("/api/v1/auth/register")
 async def register(request: Request):
     """Register a new user."""
+    # Rate limiting - 3 registration attempts per hour
+    client_id = get_client_identifier(request)
+    is_allowed, remaining, retry_after = rate_limiter.check_rate_limit(
+        f"register:{client_id}", max_requests=3, window_seconds=3600
+    )
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many registration attempts. Try again in {retry_after} seconds.",
+            headers={"Retry-After": str(retry_after)}
+        )
+
     data = await request.json()
+
+    # Sanitize input data
+    data = input_sanitizer.sanitize_dict(data, USER_SCHEMA)
 
     # Validate required fields
     validate_required_fields(data, ["email", "password"])
@@ -274,6 +332,19 @@ async def register(request: Request):
 @app.post("/api/v1/auth/forgot-password")
 async def forgot_password(request: Request):
     """Request password reset."""
+    # Rate limiting - 3 password reset requests per hour
+    client_id = get_client_identifier(request)
+    is_allowed, remaining, retry_after = rate_limiter.check_rate_limit(
+        f"forgot_password:{client_id}", max_requests=3, window_seconds=3600
+    )
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many password reset requests. Try again in {retry_after} seconds.",
+            headers={"Retry-After": str(retry_after)}
+        )
+
     try:
         data = await request.json()
         # Validate required fields
@@ -337,6 +408,13 @@ async def reset_password(request: Request):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password must be at least 6 characters long"
+        )
+
+    # Check if token has already been used
+    if is_reset_token_used(token):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token has already been used"
         )
 
     # Validate reset token
@@ -447,6 +525,7 @@ async def google_oauth_callback(code: str = None, error: str = None):
                 existing_user = user
                 break
 
+        is_new_user = False
         if existing_user:
             # Update existing user with Google ID if not set
             if not existing_user.get("google_id"):
@@ -457,6 +536,7 @@ async def google_oauth_callback(code: str = None, error: str = None):
             user = existing_user
         else:
             # Create new user
+            is_new_user = True
             user_id = secrets.token_urlsafe(16)
             user = {
                 "id": user_id,
@@ -472,6 +552,15 @@ async def google_oauth_callback(code: str = None, error: str = None):
                 "updated_at": datetime.utcnow().isoformat()
             }
             data_service.save_user(user_id, user)
+
+            # Send welcome email to new user
+            try:
+                user_name = f"{user_info['first_name']} {user_info['last_name']}".strip(
+                ) or user_info["email"]
+                await email_service.send_welcome_email(user_info["email"], user_name)
+            except Exception as email_error:
+                logger.warning(
+                    f"Failed to send welcome email: {str(email_error)}")
 
         # Create JWT token
         access_token = create_jwt_token(user["id"])
@@ -556,6 +645,7 @@ async def google_oauth_token_login(request: Request):
                 existing_user = user
                 break
 
+        is_new_user = False
         if existing_user:
             # Update existing user with Google ID if not set
             if not existing_user.get("google_id"):
@@ -566,6 +656,7 @@ async def google_oauth_token_login(request: Request):
             user = existing_user
         else:
             # Create new user
+            is_new_user = True
             user_id = secrets.token_urlsafe(16)
             user = {
                 "id": user_id,
@@ -581,6 +672,15 @@ async def google_oauth_token_login(request: Request):
                 "updated_at": datetime.utcnow().isoformat()
             }
             data_service.save_user(user_id, user)
+
+            # Send welcome email to new user
+            try:
+                user_name = f"{user_info['first_name']} {user_info['last_name']}".strip(
+                ) or user_info["email"]
+                await email_service.send_welcome_email(user_info["email"], user_name)
+            except Exception as email_error:
+                logger.warning(
+                    f"Failed to send welcome email: {str(email_error)}")
 
         # Create JWT token
         access_token = create_jwt_token(user["id"])
@@ -637,6 +737,9 @@ async def create_income(request: Request, current_user: Dict = Depends(get_curre
     """Create income record."""
     data = await request.json()
 
+    # Sanitize input data
+    data = input_sanitizer.sanitize_dict(data, INCOME_SCHEMA)
+
     validate_required_fields(data, ["source", "amount"])
 
     try:
@@ -666,10 +769,46 @@ async def create_income(request: Request, current_user: Dict = Depends(get_curre
 
 
 @app.get("/api/v1/income")
-async def get_income(current_user: Dict = Depends(get_current_user)):
-    """Get user income records."""
+async def get_income(
+    request: Request,
+    current_user: Dict = Depends(get_current_user),
+    page: int = 1,
+    page_size: int = 50
+):
+    """Get user income records with pagination."""
     user_income = data_service.get_income_by_user(current_user["id"])
-    return user_income
+
+    # Sort by date (newest first)
+    user_income.sort(key=lambda x: x.get('date', ''), reverse=True)
+
+    # Apply pagination
+    paginated = paginate_list(user_income, page, page_size)
+    return paginated.to_dict()
+
+
+@app.get("/api/v1/income/monthly-average")
+async def get_monthly_average_income(current_user: Dict = Depends(get_current_user)):
+    """Get average monthly income over the last 3 months."""
+    try:
+        income_service = get_income_budget_service(data_service)
+        avg_income = income_service.calculate_average_monthly_income(
+            current_user["id"])
+        current_month_income = income_service.calculate_monthly_income(
+            current_user["id"])
+
+        return {
+            "success": True,
+            "average_monthly_income": avg_income,
+            "current_month_income": current_month_income,
+            "variance": current_month_income - avg_income,
+            "variance_percentage": ((current_month_income - avg_income) / avg_income * 100) if avg_income > 0 else 0
+        }
+    except Exception as e:
+        logger.error(f"Error getting monthly average income: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get monthly average income: {str(e)}"
+        ) from e
 
 
 @app.get("/api/v1/income/{income_id}")
@@ -763,6 +902,9 @@ async def create_expense(request: Request, current_user: Dict = Depends(get_curr
     """Create expense record."""
     data = await request.json()
 
+    # Sanitize input data
+    data = input_sanitizer.sanitize_dict(data, EXPENSE_SCHEMA)
+
     validate_required_fields(data, ["description", "amount"])
 
     try:
@@ -808,10 +950,21 @@ async def create_expense(request: Request, current_user: Dict = Depends(get_curr
 
 
 @app.get("/api/v1/expenses")
-async def get_expenses(current_user: Dict = Depends(get_current_user)):
-    """Get user expense records."""
+async def get_expenses(
+    request: Request,
+    current_user: Dict = Depends(get_current_user),
+    page: int = 1,
+    page_size: int = 50
+):
+    """Get user expense records with pagination."""
     user_expenses = data_service.get_expenses_by_user(current_user["id"])
-    return user_expenses
+
+    # Sort by date (newest first)
+    user_expenses.sort(key=lambda x: x.get('date', ''), reverse=True)
+
+    # Apply pagination
+    paginated = paginate_list(user_expenses, page, page_size)
+    return paginated.to_dict()
 
 
 @app.get("/api/v1/expenses/{expense_id}")
@@ -920,6 +1073,9 @@ async def create_budget(request: Request, current_user: Dict = Depends(get_curre
     """Create budget."""
     data = await request.json()
 
+    # Sanitize input data
+    data = input_sanitizer.sanitize_dict(data, BUDGET_SCHEMA)
+
     validate_required_fields(data, ["category", "amount"])
 
     try:
@@ -966,13 +1122,63 @@ async def create_budget(request: Request, current_user: Dict = Depends(get_curre
 
 
 @app.get("/api/v1/budgets")
-async def get_budgets(current_user: Dict = Depends(get_current_user)):
-    """Get user budgets."""
+async def get_budgets(
+    request: Request,
+    current_user: Dict = Depends(get_current_user),
+    page: int = 1,
+    page_size: int = 50
+):
+    """Get user budgets with pagination."""
     user_budgets = data_service.get_budgets_by_user(current_user["id"])
-    return user_budgets
+
+    # Sort by category
+    user_budgets.sort(key=lambda x: x.get('category', ''))
+
+    # Apply pagination
+    paginated = paginate_list(user_budgets, page, page_size)
+    return paginated.to_dict()
 
 
 # Budget Alert endpoints
+
+@app.get("/api/v1/budgets/alerts")
+async def get_budget_alerts(current_user: Dict = Depends(get_current_user)):
+    """Get current budget alerts for user."""
+    try:
+        from services.budget_monitoring_service import budget_monitoring_service
+
+        budget_summary = budget_monitoring_service.get_user_budget_summary(
+            current_user["id"])
+
+        # Convert budget summary to alerts format
+        alerts = []
+        for budget in budget_summary:
+            if budget['percentage'] >= 80:
+                notification_type = 'over_budget' if budget['percentage'] > 100 else 'approaching_limit'
+                alerts.append({
+                    'id': budget['budget_id'],
+                    'budget_id': budget['budget_id'],
+                    'category': budget['category'],
+                    'notification_type': notification_type,
+                    'percentage': budget['percentage'],
+                    'spent': budget['spent'],
+                    'limit': budget['budget_amount'],
+                    'remaining': budget['remaining'],
+                    'period': budget['period']
+                })
+
+        return {
+            "success": True,
+            "alerts": alerts
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting budget alerts: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get budget alerts: {str(e)}"
+        ) from e
+
 
 @app.get("/api/v1/budgets/alerts/check")
 async def check_budget_alerts(current_user: Dict = Depends(get_current_user)):
@@ -1278,16 +1484,96 @@ async def get_user_statistics(current_user: Dict = Depends(get_current_user)):
 
 @app.post("/api/v1/settings/export-data")
 async def export_user_data(current_user: Dict = Depends(get_current_user)):
-    """Export user data (placeholder for future implementation)."""
+    """Export all user data and send via email."""
     try:
-        # TODO: Implement actual data export functionality
-        # This would typically generate a ZIP file with all user data
+        logger.info(
+            f"Export data request received for user: {current_user.get('id')}")
+        user_id = current_user["id"]
+        user_email = current_user.get("email")
+        user_name = f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip(
+        ) or user_email
+        logger.info(f"Preparing data export for {user_email}")
 
-        return {
-            "success": True,
-            "message": "Data export initiated. You'll receive an email when ready.",
-            "note": "This is a placeholder implementation"
+        # Gather all user data
+        expenses = data_service.get_expenses_by_user(user_id)
+        budgets = data_service.get_budgets_by_user(user_id)
+        income = data_service.get_income_by_user(user_id)
+        settings = setting_service.get_user_settings(user_id)
+
+        # Create user profile data (exclude sensitive info)
+        user_profile = {
+            "id": current_user.get("id"),
+            "email": current_user.get("email"),
+            "first_name": current_user.get("first_name"),
+            "last_name": current_user.get("last_name"),
+            "created_at": current_user.get("created_at"),
+            "updated_at": current_user.get("updated_at")
         }
+
+        # Create ZIP file in memory
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Add user profile
+            zip_file.writestr('user_profile.json', json.dumps(
+                user_profile, indent=2, default=str))
+
+            # Add expenses
+            zip_file.writestr('expenses.json', json.dumps(
+                expenses, indent=2, default=str))
+
+            # Add budgets
+            zip_file.writestr('budgets.json', json.dumps(
+                budgets, indent=2, default=str))
+
+            # Add income
+            zip_file.writestr('income.json', json.dumps(
+                income, indent=2, default=str))
+
+            # Add settings
+            zip_file.writestr('settings.json', json.dumps(
+                settings, indent=2, default=str))
+
+            # Add summary
+            summary = {
+                "export_date": datetime.utcnow().isoformat(),
+                "total_expenses": len(expenses),
+                "total_budgets": len(budgets),
+                "total_income": len(income),
+                "user_id": user_id
+            }
+            zip_file.writestr('export_summary.json',
+                              json.dumps(summary, indent=2))
+
+        # Get ZIP file data
+        zip_data = zip_buffer.getvalue()
+
+        # Generate filename with timestamp
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        filename = f"budgetly_data_export_{timestamp}.zip"
+
+        # Send email with attachment
+        try:
+            await email_service.send_data_export_email(
+                user_email,
+                user_name,
+                zip_data,
+                filename,
+                len(expenses),
+                len(budgets),
+                len(income)
+            )
+
+            return {
+                "success": True,
+                "message": f"Data export has been sent to {user_email}"
+            }
+        except Exception as email_error:
+            logger.error(f"Failed to send export email: {str(email_error)}")
+            # If email fails, still return success but with different message
+            return {
+                "success": True,
+                "message": "Data export prepared but email delivery failed. Please contact support."
+            }
 
     except Exception as e:
         logger.error(f"Error exporting user data: {str(e)}")
@@ -1299,29 +1585,77 @@ async def export_user_data(current_user: Dict = Depends(get_current_user)):
 
 @app.delete("/api/v1/settings/delete-account")
 async def delete_user_account(current_user: Dict = Depends(get_current_user)):
-    """Delete user account and all associated data."""
+    """Delete user account and all associated data permanently."""
     try:
         user_id = current_user["id"]
 
-        # TODO: Implement comprehensive account deletion
-        # This should delete:
-        # - User profile
-        # - All expenses
-        # - All budgets
-        # - All income records
-        # - All settings
-        # - All stored images
+        logger.info(f"Starting account deletion for user: {user_id}")
 
-        # For now, just deactivate the account
-        current_user["is_active"] = False
-        current_user["deleted_at"] = datetime.utcnow().isoformat()
-        current_user["updated_at"] = datetime.utcnow().isoformat()
+        # Delete all expenses
+        expenses = data_service.get_expenses_by_user(user_id)
+        for expense in expenses:
+            # Delete associated images if any
+            if expense.get("receipt_url"):
+                try:
+                    persistent_storage.delete_image(expense["receipt_url"])
+                except Exception as img_error:
+                    logger.warning(
+                        f"Failed to delete image for expense {expense['id']}: {img_error}")
 
-        data_service.save_user(user_id, current_user)
+            data_service.delete_expense(expense["id"])
+
+        logger.info(f"Deleted {len(expenses)} expenses for user {user_id}")
+
+        # Delete all budgets
+        budgets = data_service.get_budgets_by_user(user_id)
+        for budget in budgets:
+            data_service.delete_budget(budget["id"])
+
+        logger.info(f"Deleted {len(budgets)} budgets for user {user_id}")
+
+        # Delete all income records
+        income_records = data_service.get_income_by_user(user_id)
+        for income in income_records:
+            data_service.delete_income(income["id"])
+
+        logger.info(
+            f"Deleted {len(income_records)} income records for user {user_id}")
+
+        # Delete any password reset tokens for this user
+        try:
+            reset_tokens = data_service.reset_tokens_db()
+            for token, token_data in reset_tokens.items():
+                if token_data.get("user_id") == user_id:
+                    data_service.delete_reset_token(token)
+        except Exception as token_error:
+            logger.warning(
+                f"Failed to delete reset tokens for user {user_id}: {token_error}")
+
+        # Finally, delete the user account itself (settings are stored in user document)
+        # We need to use the underlying MongoDB service to delete the user document
+        try:
+            import asyncio
+
+            async def delete_user_doc():
+                await data_service._async.delete_one("users", {"id": user_id})
+
+            asyncio.run(delete_user_doc())
+            logger.info(f"Deleted user document for user {user_id}")
+        except Exception as user_delete_error:
+            logger.error(
+                f"Failed to delete user document for {user_id}: {user_delete_error}")
+            raise
+
+        logger.info(f"Successfully deleted account for user: {user_id}")
 
         return {
             "success": True,
-            "message": "Account deletion initiated. You will be logged out shortly."
+            "message": "Account and all associated data have been permanently deleted.",
+            "deleted": {
+                "expenses": len(expenses),
+                "budgets": len(budgets),
+                "income_records": len(income_records)
+            }
         }
 
     except Exception as e:
@@ -1406,6 +1740,98 @@ async def delete_budget(budget_id: str, current_user: Dict = Depends(get_current
         )
 
     return {"message": "Budget deleted successfully"}
+
+
+# Income-Aware Budget Endpoints
+
+@app.get("/api/v1/budgets/income-analysis")
+async def get_income_budget_analysis(current_user: Dict = Depends(get_current_user)):
+    """Get comprehensive income-based budget analysis."""
+    try:
+        income_service = get_income_budget_service(data_service)
+
+        available = income_service.calculate_available_to_budget(
+            current_user["id"])
+        health_score = income_service.calculate_budget_health_score(
+            current_user["id"])
+        recommendations = income_service.get_budget_recommendations(
+            current_user["id"])
+        spending_analysis = income_service.analyze_spending_vs_income(
+            current_user["id"])
+
+        return {
+            "success": True,
+            "available_to_budget": available,
+            "health_score": health_score,
+            "recommendations": recommendations,
+            "spending_analysis": spending_analysis
+        }
+    except Exception as e:
+        logger.error(f"Error getting income budget analysis: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get income budget analysis: {str(e)}"
+        ) from e
+
+
+@app.get("/api/v1/budgets/recommendations")
+async def get_budget_recommendations(current_user: Dict = Depends(get_current_user)):
+    """Get AI-powered budget recommendations based on income."""
+    try:
+        income_service = get_income_budget_service(data_service)
+        recommendations = income_service.get_budget_recommendations(
+            current_user["id"])
+
+        return {
+            "success": True,
+            **recommendations
+        }
+    except Exception as e:
+        logger.error(f"Error getting budget recommendations: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get budget recommendations: {str(e)}"
+        ) from e
+
+
+@app.get("/api/v1/budgets/category-suggestion/{category}")
+async def get_category_budget_suggestion(category: str, current_user: Dict = Depends(get_current_user)):
+    """Get budget suggestion for a specific category based on income."""
+    try:
+        income_service = get_income_budget_service(data_service)
+        suggestion = income_service.get_income_based_budget_suggestions(
+            current_user["id"], category)
+
+        return {
+            "success": True,
+            **suggestion
+        }
+    except Exception as e:
+        logger.error(f"Error getting category budget suggestion: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get category budget suggestion: {str(e)}"
+        ) from e
+
+
+@app.get("/api/v1/budgets/health-score")
+async def get_budget_health_score(current_user: Dict = Depends(get_current_user)):
+    """Get budget health score based on income and spending."""
+    try:
+        income_service = get_income_budget_service(data_service)
+        health_score = income_service.calculate_budget_health_score(
+            current_user["id"])
+
+        return {
+            "success": True,
+            **health_score
+        }
+    except Exception as e:
+        logger.error(f"Error getting budget health score: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get budget health score: {str(e)}"
+        ) from e
 
 
 # Categories API endpoint for AI suggestions
@@ -2526,7 +2952,6 @@ async def manual_budget_check(current_user: Dict = Depends(get_current_user)):
     """Manually trigger budget check for all users (admin function)."""
     try:
         from services.budget_monitoring_service import budget_monitoring_service
-
 
         result = await budget_monitoring_service.process_all_budget_alerts()
 

@@ -287,26 +287,22 @@ class ImageValidationService:
                     "reason": f"PDF has {num_pages} pages, maximum 10 allowed for receipts"
                 }
 
-            # Try to extract text from first page to verify readability
+            # Try to extract text from first page (optional check)
+            has_text = False
             try:
                 first_page = pdf_reader.pages[0]
                 text = first_page.extract_text()
-                # PDF should have some extractable text
-                if len(text.strip()) < 10:
-                    return {
-                        "valid": False,
-                        "error": "PDF contains no readable text",
-                        "reason": "PDF appears to contain only images or is corrupted"
-                    }
+                has_text = len(text.strip()) > 10
             except Exception:
                 # If text extraction fails, still allow the PDF
+                # Many receipt PDFs are image-based and don't have extractable text
                 pass
 
             return {
                 "valid": True,
                 "pdf_info": {
                     "num_pages": num_pages,
-                    "has_text": len(text.strip()) > 10 if 'text' in locals() else False
+                    "has_text": has_text
                 }
             }
 

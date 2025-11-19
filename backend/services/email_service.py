@@ -61,13 +61,13 @@ class EmailService:
             <title>Reset Your Password - Budgetly</title>
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-                
+
                 * {{
                     margin: 0;
                     padding: 0;
                     box-sizing: border-box;
                 }}
-                
+
                 body {{
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     line-height: 1.6;
@@ -76,7 +76,7 @@ class EmailService:
                     min-height: 100vh;
                     padding: 20px;
                 }}
-                
+
                 .email-wrapper {{
                     max-width: 600px;
                     margin: 0 auto;
@@ -86,7 +86,7 @@ class EmailService:
                     overflow: hidden;
                     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
                 }}
-                
+
                 .header {{
                     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 50%, #7c3aed 100%);
                     padding: 40px 30px;
@@ -94,7 +94,7 @@ class EmailService:
                     position: relative;
                     overflow: hidden;
                 }}
-                
+
                 .header::before {{
                     content: '';
                     position: absolute;
@@ -105,18 +105,18 @@ class EmailService:
                     background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
                     animation: float 6s ease-in-out infinite;
                 }}
-                
+
                 @keyframes float {{
                     0%, 100% {{ transform: translateY(0px) rotate(0deg); }}
                     50% {{ transform: translateY(-20px) rotate(180deg); }}
                 }}
-                
+
                 .logo-container {{
                     position: relative;
                     z-index: 2;
                     margin-bottom: 20px;
                 }}
-                
+
                 .logo {{
                     width: 80px;
                     height: 80px;
@@ -130,7 +130,7 @@ class EmailService:
                     backdrop-filter: blur(10px);
                     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
                 }}
-                
+
                 .brand-name {{
                     color: white;
                     font-size: 28px;
@@ -138,19 +138,19 @@ class EmailService:
                     margin: 15px 0 5px 0;
                     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                 }}
-                
+
                 .tagline {{
                     color: rgba(255, 255, 255, 0.9);
                     font-size: 16px;
                     font-weight: 400;
                     margin: 0;
                 }}
-                
+
                 .content {{
                     padding: 50px 40px;
                     background: white;
                 }}
-                
+
                 .title {{
                     font-size: 32px;
                     font-weight: 700;
@@ -162,7 +162,7 @@ class EmailService:
                     -webkit-text-fill-color: transparent;
                     background-clip: text;
                 }}
-                
+
                 .subtitle {{
                     text-align: center;
                     color: #6b7280;
@@ -170,26 +170,26 @@ class EmailService:
                     margin-bottom: 40px;
                     font-weight: 400;
                 }}
-                
+
                 .greeting {{
                     font-size: 18px;
                     font-weight: 500;
                     color: #374151;
                     margin-bottom: 25px;
                 }}
-                
+
                 .message {{
                     color: #4b5563;
                     font-size: 16px;
                     line-height: 1.7;
                     margin-bottom: 35px;
                 }}
-                
+
                 .cta-container {{
                     text-align: center;
                     margin: 40px 0;
                 }}
-                
+
                 .cta-button {{
                     display: inline-block;
                     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 50%, #7c3aed 100%);
@@ -204,7 +204,7 @@ class EmailService:
                     position: relative;
                     overflow: hidden;
                 }}
-                
+
                 .cta-button::before {{
                     content: '';
                     position: absolute;
@@ -215,16 +215,16 @@ class EmailService:
                     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
                     transition: left 0.5s;
                 }}
-                
+
                 .cta-button:hover::before {{
                     left: 100%;
                 }}
-                
+
                 .cta-button:hover {{
                     transform: translateY(-2px);
                     box-shadow: 0 15px 35px rgba(59, 130, 246, 0.4);
                 }}
-                
+
                 .info-card {{
                     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
                     border-left: 4px solid #3b82f6;
@@ -232,7 +232,7 @@ class EmailService:
                     padding: 20px;
                     margin: 30px 0;
                 }}
-                
+
                 .info-card-title {{
                     font-weight: 600;
                     color: #1f2937;
@@ -241,13 +241,13 @@ class EmailService:
                     align-items: center;
                     gap: 8px;
                 }}
-                
+
                 .info-card-text {{
                     color: #4b5563;
                     font-size: 14px;
                     line-height: 1.6;
                 }}
-                
+
                 .security-badge {{
                     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
                     color: white;
@@ -260,7 +260,7 @@ class EmailService:
                     gap: 8px;
                     margin: 20px 0;
                 }}
-                
+
                 .alternative-link {{
                     background: #f9fafb;
                     border: 1px solid #e5e7eb;
@@ -269,26 +269,26 @@ class EmailService:
                     margin: 25px 0;
                     font-size: 14px;
                 }}
-                
+
                 .alternative-link-title {{
                     font-weight: 600;
                     color: #374151;
                     margin-bottom: 8px;
                 }}
-                
+
                 .alternative-link a {{
                     color: #3b82f6;
                     word-break: break-all;
                     text-decoration: none;
                 }}
-                
+
                 .footer {{
                     background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
                     padding: 40px;
                     text-align: center;
                     color: #9ca3af;
                 }}
-                
+
                 .footer-logo {{
                     width: 50px;
                     height: 50px;
@@ -300,13 +300,13 @@ class EmailService:
                     margin-bottom: 20px;
                     font-size: 20px;
                 }}
-                
+
                 .footer-text {{
                     font-size: 14px;
                     line-height: 1.6;
                     margin-bottom: 15px;
                 }}
-                
+
                 .footer-copyright {{
                     font-size: 12px;
                     color: #6b7280;
@@ -314,11 +314,11 @@ class EmailService:
                     padding-top: 20px;
                     margin-top: 20px;
                 }}
-                
+
                 .social-links {{
                     margin: 20px 0;
                 }}
-                
+
                 .social-links a {{
                     display: inline-block;
                     width: 40px;
@@ -331,13 +331,13 @@ class EmailService:
                     line-height: 40px;
                     transition: all 0.3s ease;
                 }}
-                
+
                 .social-links a:hover {{
                     background: #3b82f6;
                     color: white;
                     transform: translateY(-2px);
                 }}
-                
+
                 @media (max-width: 600px) {{
                     body {{ padding: 10px; }}
                     .content {{ padding: 30px 20px; }}
@@ -356,47 +356,47 @@ class EmailService:
                     <h1 class="brand-name">Budgetly</h1>
                     <p class="tagline">AI-Powered Financial Management</p>
                 </div>
-                
+
                 <div class="content">
                     <h2 class="title">Password Reset</h2>
                     <p class="subtitle">Secure your account with a new password</p>
-                    
+
                     <div class="greeting">
                         Hello {user_name or "there"} 👋
                     </div>
-                    
+
                     <div class="message">
-                        We received a request to reset your password for your Budgetly account. 
+                        We received a request to reset your password for your Budgetly account.
                         No worries, it happens to the best of us! Click the button below to create a new, secure password.
                     </div>
-                    
+
                     <div class="cta-container">
                         <a href="{reset_url}" class="cta-button">
                             🔐 Reset My Password
                         </a>
                     </div>
-                    
+
                     <div class="security-badge">
                         ⏰ Expires in 1 hour for your security
                     </div>
-                    
+
                     <div class="info-card">
                         <div class="info-card-title">
                             🔒 Security First
                         </div>
                         <div class="info-card-text">
-                            If you didn't request this password reset, please ignore this email. 
+                            If you didn't request this password reset, please ignore this email.
                             Your account remains completely secure and no changes have been made.
                         </div>
                     </div>
-                    
+
                     <div class="alternative-link">
                         <div class="alternative-link-title">Button not working?</div>
                         Copy and paste this link into your browser:<br>
                         <a href="{reset_url}">{reset_url}</a>
                     </div>
                 </div>
-                
+
                 <div class="footer">
                     <div class="footer-logo">💰</div>
                     <div class="footer-text">
@@ -432,7 +432,7 @@ If you made this request, click the link below to create a new password:
 
 This link will expire in 1 hour for security reasons.
 
-If you didn't request this password reset, please ignore this email. 
+If you didn't request this password reset, please ignore this email.
 Your account remains secure and no changes have been made.
 
 Best regards,
@@ -505,13 +505,13 @@ The Budgetly Team
             <title>Welcome to Budgetly!</title>
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-                
+
                 * {{
                     margin: 0;
                     padding: 0;
                     box-sizing: border-box;
                 }}
-                
+
                 body {{
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     line-height: 1.6;
@@ -520,7 +520,7 @@ The Budgetly Team
                     min-height: 100vh;
                     padding: 20px;
                 }}
-                
+
                 .email-wrapper {{
                     max-width: 600px;
                     margin: 0 auto;
@@ -530,7 +530,7 @@ The Budgetly Team
                     overflow: hidden;
                     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
                 }}
-                
+
                 .header {{
                     background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
                     padding: 50px 30px;
@@ -538,7 +538,7 @@ The Budgetly Team
                     position: relative;
                     overflow: hidden;
                 }}
-                
+
                 .header::before {{
                     content: '';
                     position: absolute;
@@ -549,20 +549,20 @@ The Budgetly Team
                     background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
                     animation: celebrate 8s ease-in-out infinite;
                 }}
-                
+
                 @keyframes celebrate {{
                     0%, 100% {{ transform: translateY(0px) rotate(0deg) scale(1); }}
                     25% {{ transform: translateY(-10px) rotate(90deg) scale(1.1); }}
                     50% {{ transform: translateY(-20px) rotate(180deg) scale(1); }}
                     75% {{ transform: translateY(-10px) rotate(270deg) scale(1.1); }}
                 }}
-                
+
                 .logo-container {{
                     position: relative;
                     z-index: 2;
                     margin-bottom: 25px;
                 }}
-                
+
                 .logo {{
                     width: 100px;
                     height: 100px;
@@ -577,13 +577,13 @@ The Budgetly Team
                     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
                     animation: bounce 2s ease-in-out infinite;
                 }}
-                
+
                 @keyframes bounce {{
                     0%, 20%, 50%, 80%, 100% {{ transform: translateY(0); }}
                     40% {{ transform: translateY(-10px); }}
                     60% {{ transform: translateY(-5px); }}
                 }}
-                
+
                 .welcome-text {{
                     color: white;
                     font-size: 36px;
@@ -591,19 +591,19 @@ The Budgetly Team
                     margin: 20px 0 10px 0;
                     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                 }}
-                
+
                 .brand-name {{
                     color: rgba(255, 255, 255, 0.95);
                     font-size: 24px;
                     font-weight: 600;
                     margin: 0;
                 }}
-                
+
                 .content {{
                     padding: 50px 40px;
                     background: white;
                 }}
-                
+
                 .title {{
                     font-size: 28px;
                     font-weight: 700;
@@ -611,7 +611,7 @@ The Budgetly Team
                     text-align: center;
                     margin-bottom: 20px;
                 }}
-                
+
                 .greeting {{
                     font-size: 20px;
                     font-weight: 500;
@@ -619,7 +619,7 @@ The Budgetly Team
                     margin-bottom: 30px;
                     text-align: center;
                 }}
-                
+
                 .message {{
                     color: #4b5563;
                     font-size: 16px;
@@ -627,14 +627,14 @@ The Budgetly Team
                     margin-bottom: 35px;
                     text-align: center;
                 }}
-                
+
                 .features-grid {{
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
                     gap: 25px;
                     margin: 40px 0;
                 }}
-                
+
                 .feature-card {{
                     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
                     border-radius: 15px;
@@ -643,36 +643,36 @@ The Budgetly Team
                     border: 1px solid #e5e7eb;
                     transition: all 0.3s ease;
                 }}
-                
+
                 .feature-card:hover {{
                     transform: translateY(-5px);
                     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
                 }}
-                
+
                 .feature-icon {{
                     font-size: 32px;
                     margin-bottom: 15px;
                     display: block;
                 }}
-                
+
                 .feature-title {{
                     font-size: 16px;
                     font-weight: 600;
                     color: #1f2937;
                     margin-bottom: 8px;
                 }}
-                
+
                 .feature-desc {{
                     font-size: 14px;
                     color: #6b7280;
                     line-height: 1.5;
                 }}
-                
+
                 .cta-container {{
                     text-align: center;
                     margin: 40px 0;
                 }}
-                
+
                 .cta-button {{
                     display: inline-block;
                     background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
@@ -687,7 +687,7 @@ The Budgetly Team
                     position: relative;
                     overflow: hidden;
                 }}
-                
+
                 .cta-button::before {{
                     content: '';
                     position: absolute;
@@ -698,16 +698,16 @@ The Budgetly Team
                     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
                     transition: left 0.5s;
                 }}
-                
+
                 .cta-button:hover::before {{
                     left: 100%;
                 }}
-                
+
                 .cta-button:hover {{
                     transform: translateY(-2px);
                     box-shadow: 0 15px 35px rgba(16, 185, 129, 0.4);
                 }}
-                
+
                 .tips-section {{
                     background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
                     border-radius: 15px;
@@ -715,7 +715,7 @@ The Budgetly Team
                     margin: 30px 0;
                     border-left: 4px solid #3b82f6;
                 }}
-                
+
                 .tips-title {{
                     font-size: 18px;
                     font-weight: 600;
@@ -725,12 +725,12 @@ The Budgetly Team
                     align-items: center;
                     gap: 10px;
                 }}
-                
+
                 .tips-list {{
                     list-style: none;
                     padding: 0;
                 }}
-                
+
                 .tips-list li {{
                     color: #4b5563;
                     font-size: 14px;
@@ -738,21 +738,21 @@ The Budgetly Team
                     padding-left: 25px;
                     position: relative;
                 }}
-                
+
                 .tips-list li::before {{
                     content: '✨';
                     position: absolute;
                     left: 0;
                     top: 0;
                 }}
-                
+
                 .footer {{
                     background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
                     padding: 40px;
                     text-align: center;
                     color: #9ca3af;
                 }}
-                
+
                 .footer-logo {{
                     width: 50px;
                     height: 50px;
@@ -764,13 +764,13 @@ The Budgetly Team
                     margin-bottom: 20px;
                     font-size: 20px;
                 }}
-                
+
                 .footer-text {{
                     font-size: 14px;
                     line-height: 1.6;
                     margin-bottom: 15px;
                 }}
-                
+
                 .footer-copyright {{
                     font-size: 12px;
                     color: #6b7280;
@@ -778,7 +778,7 @@ The Budgetly Team
                     padding-top: 20px;
                     margin-top: 20px;
                 }}
-                
+
                 @media (max-width: 600px) {{
                     body {{ padding: 10px; }}
                     .content {{ padding: 30px 20px; }}
@@ -797,19 +797,19 @@ The Budgetly Team
                     <h1 class="welcome-text">Welcome!</h1>
                     <p class="brand-name">You're now part of Budgetly</p>
                 </div>
-                
+
                 <div class="content">
                     <h2 class="title">Your Financial Journey Starts Here</h2>
-                    
+
                     <div class="greeting">
                         Hello {user_name}! 👋
                     </div>
-                    
+
                     <div class="message">
-                        Congratulations on taking the first step towards better financial management! 
+                        Congratulations on taking the first step towards better financial management!
                         Your Budgetly account is ready, and we're excited to help you achieve your financial goals.
                     </div>
-                    
+
                     <div class="features-grid">
                         <div class="feature-card">
                             <span class="feature-icon">📊</span>
@@ -832,13 +832,13 @@ The Budgetly Team
                             <div class="feature-desc">Record and analyze your income sources</div>
                         </div>
                     </div>
-                    
+
                     <div class="cta-container">
                         <a href="{self.frontend_url}/dashboard" class="cta-button">
                             🚀 Start Managing Your Finances
                         </a>
                     </div>
-                    
+
                     <div class="tips-section">
                         <div class="tips-title">
                             💡 Quick Tips to Get Started
@@ -851,7 +851,7 @@ The Budgetly Team
                         </ul>
                     </div>
                 </div>
-                
+
                 <div class="footer">
                     <div class="footer-logo">💰</div>
                     <div class="footer-text">
@@ -910,13 +910,13 @@ The Budgetly Team
             <title>Budget Alert - {category}</title>
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-                
+
                 * {{
                     margin: 0;
                     padding: 0;
                     box-sizing: border-box;
                 }}
-                
+
                 body {{
                     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     line-height: 1.6;
@@ -925,7 +925,7 @@ The Budgetly Team
                     min-height: 100vh;
                     padding: 20px;
                 }}
-                
+
                 .email-wrapper {{
                     max-width: 600px;
                     margin: 0 auto;
@@ -935,7 +935,7 @@ The Budgetly Team
                     overflow: hidden;
                     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
                 }}
-                
+
                 .header {{
                     background: linear-gradient(135deg, {header_color} 0%, #1f2937 100%);
                     padding: 40px 30px;
@@ -943,18 +943,18 @@ The Budgetly Team
                     position: relative;
                     overflow: hidden;
                 }}
-                
+
                 .alert-icon {{
                     font-size: 64px;
                     margin-bottom: 20px;
                     animation: pulse 2s ease-in-out infinite;
                 }}
-                
+
                 @keyframes pulse {{
                     0%, 100% {{ transform: scale(1); }}
                     50% {{ transform: scale(1.1); }}
                 }}
-                
+
                 .alert-title {{
                     color: white;
                     font-size: 28px;
@@ -962,26 +962,26 @@ The Budgetly Team
                     margin: 15px 0 5px 0;
                     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                 }}
-                
+
                 .alert-subtitle {{
                     color: rgba(255, 255, 255, 0.9);
                     font-size: 16px;
                     font-weight: 400;
                     margin: 0;
                 }}
-                
+
                 .content {{
                     padding: 40px;
                     background: white;
                 }}
-                
+
                 .greeting {{
                     font-size: 18px;
                     font-weight: 500;
                     color: #374151;
                     margin-bottom: 25px;
                 }}
-                
+
                 .alert-message {{
                     color: #4b5563;
                     font-size: 16px;
@@ -994,7 +994,7 @@ The Budgetly Team
                     border-radius: 12px;
                     font-weight: 500;
                 }}
-                
+
                 .budget-stats {{
                     background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
                     border-radius: 15px;
@@ -1002,7 +1002,7 @@ The Budgetly Team
                     margin: 30px 0;
                     border-left: 4px solid {header_color};
                 }}
-                
+
                 .budget-category {{
                     font-size: 20px;
                     font-weight: 600;
@@ -1010,14 +1010,14 @@ The Budgetly Team
                     margin-bottom: 20px;
                     text-align: center;
                 }}
-                
+
                 .stats-grid {{
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
                     gap: 20px;
                     margin-bottom: 25px;
                 }}
-                
+
                 .stat-item {{
                     text-align: center;
                     padding: 15px;
@@ -1025,25 +1025,25 @@ The Budgetly Team
                     border-radius: 10px;
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
                 }}
-                
+
                 .stat-value {{
                     font-size: 24px;
                     font-weight: 700;
                     color: #1f2937;
                     margin-bottom: 5px;
                 }}
-                
+
                 .stat-label {{
                     font-size: 12px;
                     color: #6b7280;
                     text-transform: uppercase;
                     letter-spacing: 0.5px;
                 }}
-                
+
                 .progress-container {{
                     margin: 20px 0;
                 }}
-                
+
                 .progress-label {{
                     display: flex;
                     justify-content: between;
@@ -1051,7 +1051,7 @@ The Budgetly Team
                     font-size: 14px;
                     color: #374151;
                 }}
-                
+
                 .progress-bar {{
                     width: 100%;
                     height: 12px;
@@ -1059,7 +1059,7 @@ The Budgetly Team
                     border-radius: 6px;
                     overflow: hidden;
                 }}
-                
+
                 .progress-fill {{
                     height: 100%;
                     background: linear-gradient(90deg, {header_color}, #1f2937);
@@ -1067,7 +1067,7 @@ The Budgetly Team
                     width: {min(percentage, 100)}%;
                     transition: width 0.3s ease;
                 }}
-                
+
                 .progress-text {{
                     text-align: center;
                     margin-top: 8px;
@@ -1075,7 +1075,7 @@ The Budgetly Team
                     font-weight: 500;
                     color: {status_text_color};
                 }}
-                
+
                 .recommendations {{
                     background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
                     border-radius: 12px;
@@ -1083,7 +1083,7 @@ The Budgetly Team
                     margin: 25px 0;
                     border-left: 4px solid #3b82f6;
                 }}
-                
+
                 .recommendations-title {{
                     font-size: 16px;
                     font-weight: 600;
@@ -1093,12 +1093,12 @@ The Budgetly Team
                     align-items: center;
                     gap: 8px;
                 }}
-                
+
                 .recommendations-list {{
                     list-style: none;
                     padding: 0;
                 }}
-                
+
                 .recommendations-list li {{
                     color: #4b5563;
                     font-size: 14px;
@@ -1106,19 +1106,19 @@ The Budgetly Team
                     padding-left: 20px;
                     position: relative;
                 }}
-                
+
                 .recommendations-list li::before {{
                     content: '💡';
                     position: absolute;
                     left: 0;
                     top: 0;
                 }}
-                
+
                 .cta-container {{
                     text-align: center;
                     margin: 30px 0;
                 }}
-                
+
                 .cta-button {{
                     display: inline-block;
                     background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
@@ -1131,24 +1131,24 @@ The Budgetly Team
                     box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
                     transition: all 0.3s ease;
                 }}
-                
+
                 .cta-button:hover {{
                     transform: translateY(-2px);
                     box-shadow: 0 12px 25px rgba(59, 130, 246, 0.4);
                 }}
-                
+
                 .footer {{
                     background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
                     padding: 30px;
                     text-align: center;
                     color: #9ca3af;
                 }}
-                
+
                 .footer-text {{
                     font-size: 14px;
                     line-height: 1.6;
                 }}
-                
+
                 @media (max-width: 600px) {{
                     body {{ padding: 10px; }}
                     .content {{ padding: 25px 20px; }}
@@ -1164,19 +1164,19 @@ The Budgetly Team
                     <h1 class="alert-title">{alert_title}</h1>
                     <p class="alert-subtitle">Budgetly Alert System</p>
                 </div>
-                
+
                 <div class="content">
                     <div class="greeting">
                         Hello {user_name or "there"}! 👋
                     </div>
-                    
+
                     <div class="alert-message">
                         {alert_message}
                     </div>
-                    
+
                     <div class="budget-stats">
                         <div class="budget-category">{category} Budget</div>
-                        
+
                         <div class="stats-grid">
                             <div class="stat-item">
                                 <div class="stat-value">${spent:.2f}</div>
@@ -1195,7 +1195,7 @@ The Budgetly Team
                                 <div class="stat-label">Used</div>
                             </div>
                         </div>
-                        
+
                         <div class="progress-container">
                             <div class="progress-bar">
                                 <div class="progress-fill"></div>
@@ -1205,26 +1205,28 @@ The Budgetly Team
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="recommendations">
                         <div class="recommendations-title">
                             💡 Smart Recommendations
                         </div>
                         <ul class="recommendations-list">
-                            {'<li>Consider reducing spending in this category for the rest of the period</li>' if alert_type != 'exceeded' else '<li>Review your recent expenses to identify areas for adjustment</li>'}
+                            {'<li>Consider reducing spending in this category for the rest of the period</li>' if alert_type !=
+                             'exceeded' else '<li>Review your recent expenses to identify areas for adjustment</li>'}
                             <li>Set up spending alerts for smaller amounts to catch overspending earlier</li>
                             <li>Review and adjust your budget if your spending patterns have changed</li>
-                            {'<li>Consider creating a separate emergency fund for unexpected expenses</li>' if alert_type == 'exceeded' else '<li>Track daily spending to stay within your remaining budget</li>'}
+                            {'<li>Consider creating a separate emergency fund for unexpected expenses</li>' if alert_type ==
+                             'exceeded' else '<li>Track daily spending to stay within your remaining budget</li>'}
                         </ul>
                     </div>
-                    
+
                     <div class="cta-container">
                         <a href="{self.frontend_url}/budget" class="cta-button">
                             📊 View Budget Details
                         </a>
                     </div>
                 </div>
-                
+
                 <div class="footer">
                     <div class="footer-text">
                         Stay on track with Budgetly's smart budget alerts<br>
@@ -1289,7 +1291,8 @@ Budget Details:
 • Budget: ${budget_amount:.2f}
 • {'Remaining' if remaining >= 0 else 'Over by'}: ${abs(remaining):.2f}
 
-{'⚠️ You have exceeded your budget limit!' if alert_type == 'exceeded' else '💡 Consider monitoring your spending in this category.'}
+{'⚠️ You have exceeded your budget limit!' if alert_type ==
+                'exceeded' else '💡 Consider monitoring your spending in this category.'}
 
 View your budget details: {self.frontend_url}/budget
 
@@ -1352,7 +1355,7 @@ Ready to take control of your finances? Visit: {self.frontend_url}/dashboard
 
 Quick Tips to Get Started:
 ✨ Add your first expense to see how easy tracking can be
-✨ Set up budgets for your main spending categories  
+✨ Set up budgets for your main spending categories
 ✨ Record your income sources for a complete picture
 ✨ Check your dashboard regularly for insights
 
@@ -1383,6 +1386,357 @@ The Budgetly Team
         except Exception as e:
             logger.error(
                 f"Failed to send welcome email to {to_email}: {str(e)}")
+            return False
+
+    async def send_data_export_email(self, to_email: str, user_name: str, zip_data: bytes, filename: str,
+                                     expense_count: int, budget_count: int, income_count: int) -> bool:
+        """Send data export email with ZIP attachment."""
+        if not self.is_configured:
+            logger.error(
+                "Email service not configured. Cannot send data export email.")
+            print(f"\n📦 Data Export for {to_email}:")
+            print(f"   Filename: {filename}")
+            print(f"   Size: {len(zip_data)} bytes")
+            print(
+                f"   Contents: {expense_count} expenses, {budget_count} budgets, {income_count} income records\n")
+            return False
+
+        try:
+            from email.mime.base import MIMEBase
+            from email import encoders
+
+            # Create message
+            message = MIMEMultipart()
+            message["Subject"] = "Your Budgetly Data Export"
+            message["From"] = f"{self.from_name} <{self.from_email}>"
+            message["To"] = to_email
+
+            # Create HTML content
+            html_content = f"""
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Your Data Export - Budgetly</title>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+                    
+                    * {{
+                        margin: 0;
+                        padding: 0;
+                        box-sizing: border-box;
+                    }}
+                    
+                    body {{
+                        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                        line-height: 1.6;
+                        color: #1f2937;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        min-height: 100vh;
+                        padding: 20px;
+                    }}
+                    
+                    .email-wrapper {{
+                        max-width: 600px;
+                        margin: 0 auto;
+                        background: rgba(255, 255, 255, 0.95);
+                        backdrop-filter: blur(10px);
+                        border-radius: 20px;
+                        overflow: hidden;
+                        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+                    }}
+                    
+                    .header {{
+                        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 50%, #7c3aed 100%);
+                        padding: 40px 30px;
+                        text-align: center;
+                    }}
+                    
+                    .logo {{
+                        width: 80px;
+                        height: 80px;
+                        background: rgba(255, 255, 255, 0.2);
+                        border: 2px solid rgba(255, 255, 255, 0.3);
+                        border-radius: 20px;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 32px;
+                        margin-bottom: 20px;
+                    }}
+                    
+                    .brand-name {{
+                        color: white;
+                        font-size: 28px;
+                        font-weight: 700;
+                        margin: 15px 0 5px 0;
+                    }}
+                    
+                    .content {{
+                        padding: 50px 40px;
+                        background: white;
+                    }}
+                    
+                    .title {{
+                        font-size: 28px;
+                        font-weight: 700;
+                        color: #1f2937;
+                        text-align: center;
+                        margin-bottom: 15px;
+                    }}
+                    
+                    .subtitle {{
+                        text-align: center;
+                        color: #6b7280;
+                        font-size: 16px;
+                        margin-bottom: 30px;
+                    }}
+                    
+                    .greeting {{
+                        font-size: 18px;
+                        font-weight: 500;
+                        color: #374151;
+                        margin-bottom: 20px;
+                    }}
+                    
+                    .message {{
+                        color: #4b5563;
+                        font-size: 16px;
+                        line-height: 1.7;
+                        margin-bottom: 30px;
+                    }}
+                    
+                    .stats-grid {{
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        gap: 15px;
+                        margin: 30px 0;
+                    }}
+                    
+                    .stat-card {{
+                        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+                        border-radius: 12px;
+                        padding: 20px;
+                        text-align: center;
+                    }}
+                    
+                    .stat-number {{
+                        font-size: 24px;
+                        font-weight: 700;
+                        color: #3b82f6;
+                        margin-bottom: 5px;
+                    }}
+                    
+                    .stat-label {{
+                        font-size: 12px;
+                        color: #6b7280;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                    }}
+                    
+                    .info-card {{
+                        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+                        border-left: 4px solid #3b82f6;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 25px 0;
+                    }}
+                    
+                    .info-card-title {{
+                        font-weight: 600;
+                        color: #1f2937;
+                        margin-bottom: 8px;
+                    }}
+                    
+                    .info-card-text {{
+                        color: #4b5563;
+                        font-size: 14px;
+                        line-height: 1.6;
+                    }}
+                    
+                    .attachment-box {{
+                        background: #f9fafb;
+                        border: 2px dashed #d1d5db;
+                        border-radius: 12px;
+                        padding: 25px;
+                        text-align: center;
+                        margin: 25px 0;
+                    }}
+                    
+                    .attachment-icon {{
+                        font-size: 48px;
+                        margin-bottom: 15px;
+                    }}
+                    
+                    .attachment-name {{
+                        font-weight: 600;
+                        color: #1f2937;
+                        margin-bottom: 5px;
+                    }}
+                    
+                    .attachment-size {{
+                        color: #6b7280;
+                        font-size: 14px;
+                    }}
+                    
+                    .footer {{
+                        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+                        padding: 40px;
+                        text-align: center;
+                        color: #9ca3af;
+                    }}
+                    
+                    .footer-text {{
+                        font-size: 14px;
+                        line-height: 1.6;
+                        margin-bottom: 15px;
+                    }}
+                    
+                    .footer-copyright {{
+                        font-size: 12px;
+                        color: #6b7280;
+                        border-top: 1px solid #374151;
+                        padding-top: 20px;
+                        margin-top: 20px;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="email-wrapper">
+                    <div class="header">
+                        <div class="logo">💰</div>
+                        <h1 class="brand-name">Budgetly</h1>
+                    </div>
+                    
+                    <div class="content">
+                        <h2 class="title">Your Data Export is Ready</h2>
+                        <p class="subtitle">All your financial data in one place</p>
+                        
+                        <div class="greeting">
+                            Hello {user_name or "there"} 👋
+                        </div>
+                        
+                        <div class="message">
+                            Your data export has been completed successfully! You'll find a ZIP file attached to this email containing all your financial information from Budgetly. This export was processed within minutes of your request.
+                        </div>
+                        
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-number">{expense_count}</div>
+                                <div class="stat-label">Expenses</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">{budget_count}</div>
+                                <div class="stat-label">Budgets</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">{income_count}</div>
+                                <div class="stat-label">Income</div>
+                            </div>
+                        </div>
+                        
+                        <div class="attachment-box">
+                            <div class="attachment-icon">📦</div>
+                            <div class="attachment-name">{filename}</div>
+                            <div class="attachment-size">{len(zip_data) / 1024:.1f} KB</div>
+                        </div>
+                        
+                        <div class="info-card">
+                            <div class="info-card-title">📋 What's Included</div>
+                            <div class="info-card-text">
+                                Your export contains:
+                                <ul style="margin: 10px 0 0 20px; padding: 0;">
+                                    <li>All expense records with details</li>
+                                    <li>Budget configurations and tracking</li>
+                                    <li>Income records and sources</li>
+                                    <li>Account settings and preferences</li>
+                                    <li>Export summary with statistics</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="info-card">
+                            <div class="info-card-title">🔒 Privacy & Security</div>
+                            <div class="info-card-text">
+                                Your data is exported in JSON format for easy reading and portability. 
+                                Please store this file securely as it contains your personal financial information.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="footer">
+                        <div class="footer-text">
+                            This email was sent by Budgetly<br>
+                            Questions? We're here to help!
+                        </div>
+                        <div class="footer-copyright">
+                            © 2025 Budgetly by Lumen Grove Analytics. All rights reserved.
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+
+            # Create text version
+            text_content = f"""
+Hello {user_name or "there"},
+
+Your data export from Budgetly is ready!
+
+Export Summary:
+- {expense_count} Expenses
+- {budget_count} Budgets
+- {income_count} Income Records
+
+The attached ZIP file ({filename}) contains all your financial data in JSON format.
+
+What's Included:
+- All expense records with details
+- Budget configurations and tracking
+- Income records and sources
+- Account settings and preferences
+- Export summary with statistics
+
+Please store this file securely as it contains your personal financial information.
+
+Best regards,
+The Budgetly Team
+
+---
+© 2025 Budgetly. All rights reserved.
+            """
+
+            # Attach parts
+            text_part = MIMEText(text_content, "plain")
+            html_part = MIMEText(html_content, "html")
+            message.attach(text_part)
+            message.attach(html_part)
+
+            # Attach ZIP file
+            attachment = MIMEBase("application", "zip")
+            attachment.set_payload(zip_data)
+            encoders.encode_base64(attachment)
+            attachment.add_header(
+                "Content-Disposition",
+                f"attachment; filename={filename}"
+            )
+            message.attach(attachment)
+
+            # Send email
+            with self._create_smtp_connection() as server:
+                server.send_message(message)
+
+            logger.info(f"Data export email sent successfully to {to_email}")
+            return True
+
+        except Exception as e:
+            logger.error(
+                f"Failed to send data export email to {to_email}: {str(e)}")
+            print(f"\n❌ Email sending failed for {to_email}:")
+            print(f"   Error: {str(e)}")
+            print(f"   Data export was prepared but not delivered\n")
             return False
 
 

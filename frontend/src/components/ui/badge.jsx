@@ -1,23 +1,25 @@
 import React from 'react';
 
-export const Badge = ({ 
-  children, 
-  variant = 'default', 
-  className = '' 
+export const Badge = ({
+  children,
+  variant = 'default',
+  className = ''
 }) => {
   const getVariantClasses = () => {
     switch (variant) {
       case 'destructive':
-        return 'bg-red-100 text-red-800 border-red-200';
+        return 'bg-danger-100 text-danger-800 border-danger-200';
       case 'warning':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+        return 'bg-warning-100 text-warning-800 border-warning-200';
+      case 'success':
+        return 'bg-success-100 text-success-800 border-success-200';
       case 'secondary':
         return 'bg-gray-100 text-gray-800 border-gray-200';
       case 'outline':
         return 'bg-white text-gray-700 border-gray-300';
       case 'default':
       default:
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-primary-100 text-primary-800 border-primary-200';
     }
   };
 

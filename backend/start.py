@@ -1,17 +1,18 @@
 """Production startup script for Budgetly."""
 import os
 import uvicorn
+import logging
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 
 def main():
     """Start the production server."""
-    # Validate required environment variables
-
-    print("🚀 Starting Budgetly...")
+    logger.info("🚀 Starting Budgetly...")
 
     # Production configuration
     config = {
@@ -23,9 +24,10 @@ def main():
         "access_log": True,
     }
 
-    print(f"🌐 Server will start on http://{config['host']}:{config['port']}")
-    print(f"🔧 Debug mode: {config['reload']}")
-    print(f"📝 Log level: {config['log_level']}")
+    logger.info(
+        f"🌐 Server will start on http://{config['host']}:{config['port']}")
+    logger.info(f"🔧 Debug mode: {config['reload']}")
+    logger.info(f"📝 Log level: {config['log_level']}")
 
     uvicorn.run(**config)
 

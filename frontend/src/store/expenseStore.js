@@ -1,22 +1,27 @@
 import { create } from 'zustand';
 import { expenseApi } from '../services/api';
 import toast from 'react-hot-toast';
+import { formatError } from '../utils/errorMessages';
 
 export const useExpenseStore = create((set, get) => ({
 	expenses: [],
+	pagination: null,
 	isLoading: false,
 	isSubmitting: false,
 
 	// Fetch all expenses
-	fetchExpenses: async () => {
+	fetchExpenses: async (page = 1, pageSize = 1000) => {
 		set({ isLoading: true });
 		try {
-			const expenses = await expenseApi.getExpenses();
-			set({ expenses, isLoading: false });
+			const response = await expenseApi.getExpenses(page, pageSize);
+			// Handle both paginated and non-paginated responses
+			const expenses = response.items || response;
+			const pagination = response.pagination || null;
+			set({ expenses, pagination, isLoading: false });
 			return expenses;
 		} catch (error) {
 			set({ isLoading: false });
-			toast.error(error.message || 'Failed to fetch expenses');
+			toast.error(formatError(error, 'fetch-expenses'));
 			return [];
 		}
 	},
@@ -35,7 +40,7 @@ export const useExpenseStore = create((set, get) => ({
 			return newExpense;
 		} catch (error) {
 			set({ isSubmitting: false });
-			toast.error(error.message || 'Failed to add expense');
+			toast.error(formatError(error, 'create-expense'));
 			throw error;
 		}
 	},
@@ -57,7 +62,7 @@ export const useExpenseStore = create((set, get) => ({
 			return updatedExpense;
 		} catch (error) {
 			set({ isSubmitting: false });
-			toast.error(error.message || 'Failed to update expense');
+			toast.error(formatError(error, 'update-expense'));
 			throw error;
 		}
 	},
@@ -71,7 +76,7 @@ export const useExpenseStore = create((set, get) => ({
 			set({ expenses: filteredExpenses });
 			toast.success('Expense deleted successfully!');
 		} catch (error) {
-			toast.error(error.message || 'Failed to delete expense');
+			toast.error(formatError(error, 'delete-expense'));
 			throw error;
 		}
 	},

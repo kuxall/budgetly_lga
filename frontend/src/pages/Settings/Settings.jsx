@@ -21,12 +21,12 @@ import {
 import { useAuthStore } from "../../store/authStore";
 import { settingsApi } from "../../services/api";
 import toast from "react-hot-toast";
-import MainLayout from "../../components/layout/MainLayout";
 
 const Settings = () => {
 	const { user } = useAuthStore();
 	const [activeTab, setActiveTab] = useState("account");
 	const [loading, setLoading] = useState(false);
+	const [initialLoading, setInitialLoading] = useState(true);
 	const [showPassword, setShowPassword] = useState(false);
 	const [showCurrentPassword, setShowCurrentPassword] = useState(false);
 	const [passwordStrength, setPasswordStrength] = useState(0);
@@ -47,6 +47,12 @@ const Settings = () => {
 		email: "",
 	});
 
+	const [originalProfile, setOriginalProfile] = useState({
+		firstName: "",
+		lastName: "",
+		email: "",
+	});
+
 	const [passwordForm, setPasswordForm] = useState({
 		currentPassword: "",
 		newPassword: "",
@@ -54,6 +60,14 @@ const Settings = () => {
 	});
 
 	const [preferences, setPreferences] = useState({
+		currency: "CAD",
+		dateFormat: "DD/MM/YYYY",
+		language: "en",
+		timezone: "America/Toronto",
+		theme: "light",
+	});
+
+	const [originalPreferences, setOriginalPreferences] = useState({
 		currency: "CAD",
 		dateFormat: "DD/MM/YYYY",
 		language: "en",
@@ -69,7 +83,22 @@ const Settings = () => {
 		securityAlerts: true,
 	});
 
+	const [originalNotifications, setOriginalNotifications] = useState({
+		emailNotifications: true,
+		budgetAlerts: true,
+		receiptReminders: false,
+		weeklyReports: true,
+		securityAlerts: true,
+	});
+
 	const [receiptSettings, setReceiptSettings] = useState({
+		autoProcess: true,
+		storageTime: "24",
+		maxFileSize: "10",
+		allowedFormats: ["JPEG", "PNG", "WebP", "TIFF", "PDF"],
+	});
+
+	const [originalReceiptSettings, setOriginalReceiptSettings] = useState({
 		autoProcess: true,
 		storageTime: "24",
 		maxFileSize: "10",
@@ -79,6 +108,17 @@ const Settings = () => {
 	const [securitySettings, setSecuritySettings] = useState({
 		loginNotifications: true,
 	});
+
+	const [originalSecuritySettings, setOriginalSecuritySettings] = useState({
+		loginNotifications: true,
+	});
+
+	// Check for unsaved changes
+	const hasProfileChanges = JSON.stringify(profile) !== JSON.stringify(originalProfile);
+	const hasPreferencesChanges = JSON.stringify(preferences) !== JSON.stringify(originalPreferences);
+	const hasNotificationsChanges = JSON.stringify(notifications) !== JSON.stringify(originalNotifications);
+	const hasReceiptChanges = JSON.stringify(receiptSettings) !== JSON.stringify(originalReceiptSettings);
+	const hasSecurityChanges = JSON.stringify(securitySettings) !== JSON.stringify(originalSecuritySettings);
 
 	useEffect(() => {
 		// Load user data and settings
@@ -90,8 +130,12 @@ const Settings = () => {
 			});
 
 			// Load user settings from backend
-			loadUserSettings();
-			loadUserStatistics();
+			const loadData = async () => {
+				setInitialLoading(true);
+				await Promise.all([loadUserSettings(), loadUserStatistics()]);
+				setInitialLoading(false);
+			};
+			loadData();
 		}
 	}, [user]);
 
@@ -103,14 +147,16 @@ const Settings = () => {
 
 				// Update state with loaded settings
 				setProfile(settings.profile);
+				setOriginalProfile(settings.profile);
 				setPreferences(settings.preferences);
+				setOriginalPreferences(settings.preferences);
 				setNotifications(settings.notifications);
+				setOriginalNotifications(settings.notifications);
 				setReceiptSettings(settings.receiptSettings);
-				setSecuritySettings(
-					settings.security || {
-						loginNotifications: true,
-					}
-				);
+				setOriginalReceiptSettings(settings.receiptSettings);
+				const secSettings = settings.security || { loginNotifications: true };
+				setSecuritySettings(secSettings);
+				setOriginalSecuritySettings(secSettings);
 			}
 		} catch (error) {
 			console.error("Failed to load settings:", error);
@@ -140,10 +186,32 @@ const Settings = () => {
 	];
 
 	const handleProfileUpdate = async () => {
+		// Validate email format
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!emailRegex.test(profile.email)) {
+			toast.error("Please enter a valid email address");
+			return;
+		}
+
+		// Validate required fields
+		if (!profile.firstName.trim() || !profile.lastName.trim()) {
+			toast.error("First name and last name are required");
+			return;
+		}
+
 		setLoading(true);
 		try {
 			const response = await settingsApi.updateProfile(profile);
 			if (response.success) {
+				// Update the auth store with new user data
+				const updatedUser = {
+					...user,
+					first_name: profile.firstName,
+					last_name: profile.lastName,
+					email: profile.email,
+				};
+				useAuthStore.getState().setUser(updatedUser);
+				setOriginalProfile(profile); // Update original to match current
 				toast.success("Profile updated successfully!");
 			}
 		} catch (error) {
@@ -167,15 +235,15 @@ const Settings = () => {
 		switch (strength) {
 			case 0:
 			case 1:
-				return { text: "Very Weak", color: "text-red-600" };
+				return { text: "Very Weak", color: "text-danger-600" };
 			case 2:
-				return { text: "Weak", color: "text-orange-600" };
+				return { text: "Weak", color: "text-warning-600" };
 			case 3:
-				return { text: "Fair", color: "text-yellow-600" };
+				return { text: "Fair", color: "text-warning-600" };
 			case 4:
-				return { text: "Good", color: "text-blue-600" };
+				return { text: "Good", color: "text-primary-600" };
 			case 5:
-				return { text: "Strong", color: "text-green-600" };
+				return { text: "Strong", color: "text-success-600" };
 			default:
 				return { text: "", color: "" };
 		}
@@ -223,6 +291,7 @@ const Settings = () => {
 		try {
 			const response = await settingsApi.updatePreferences(preferences);
 			if (response.success) {
+				setOriginalPreferences(preferences); // Update original to match current
 				toast.success("Preferences updated successfully!");
 			}
 		} catch (error) {
@@ -237,6 +306,7 @@ const Settings = () => {
 		try {
 			const response = await settingsApi.updateNotifications(notifications);
 			if (response.success) {
+				setOriginalNotifications(notifications); // Update original to match current
 				toast.success("Notification preferences updated!");
 			}
 		} catch (error) {
@@ -251,6 +321,7 @@ const Settings = () => {
 		try {
 			const response = await settingsApi.updateReceiptSettings(receiptSettings);
 			if (response.success) {
+				setOriginalReceiptSettings(receiptSettings); // Update original to match current
 				toast.success("Receipt settings updated!");
 			}
 		} catch (error) {
@@ -267,6 +338,7 @@ const Settings = () => {
 				securitySettings
 			);
 			if (response.success) {
+				setOriginalSecuritySettings(securitySettings); // Update original to match current
 				toast.success("Security settings updated!");
 			}
 		} catch (error) {
@@ -282,7 +354,8 @@ const Settings = () => {
 			const response = await settingsApi.exportData();
 			if (response.success) {
 				toast.success(
-					"Data export started! You'll receive an email when ready."
+					"Data export started! You'll receive an email within 2-5 minutes.",
+					{ duration: 6000 }
 				);
 			}
 		} catch (error) {
@@ -293,28 +366,44 @@ const Settings = () => {
 	};
 
 	const handleDeleteAccount = async () => {
+		// First confirmation
 		const confirmed = window.confirm(
-			"Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently deleted."
+			"⚠️ WARNING: Are you sure you want to delete your account?\n\n" +
+			"This action CANNOT be undone and will permanently delete:\n" +
+			"• All your expenses and financial data\n" +
+			"• All uploaded receipts and images\n" +
+			"• Your account and profile information\n" +
+			"• All budgets and categories\n\n" +
+			"Click OK to continue or Cancel to go back."
 		);
 
 		if (!confirmed) return;
 
-		const doubleConfirm = window.confirm(
-			"This is your final warning. Deleting your account will permanently remove all expenses, budgets, receipts, and personal data. Type 'DELETE' to confirm."
+		// Second confirmation with text input
+		const confirmText = prompt(
+			"⚠️ FINAL WARNING ⚠️\n\n" +
+			"This is your last chance to cancel.\n\n" +
+			"To permanently delete your account and ALL data, type: DELETE\n\n" +
+			"(Type DELETE in capital letters)"
 		);
 
-		if (!doubleConfirm) return;
+		if (confirmText !== "DELETE") {
+			if (confirmText !== null) {
+				toast.error("Account deletion cancelled. You must type 'DELETE' exactly.");
+			}
+			return;
+		}
 
 		setLoading(true);
 		try {
 			const response = await settingsApi.deleteAccount();
 			if (response.success) {
 				toast.success(
-					"Account deletion initiated. You will be logged out shortly."
+					"Account deleted successfully. Logging out...",
+					{ duration: 3000 }
 				);
 				// Logout user and redirect
 				setTimeout(() => {
-					// Clear auth store and redirect to login
 					useAuthStore.getState().logout();
 					window.location.href = "/login";
 				}, 2000);
@@ -349,7 +438,7 @@ const Settings = () => {
 											onChange={(e) =>
 												setProfile({ ...profile, firstName: e.target.value })
 											}
-											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
 											placeholder="Enter first name"
 										/>
 									</div>
@@ -363,7 +452,7 @@ const Settings = () => {
 											onChange={(e) =>
 												setProfile({ ...profile, lastName: e.target.value })
 											}
-											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
 											placeholder="Enter last name"
 										/>
 									</div>
@@ -377,20 +466,26 @@ const Settings = () => {
 											onChange={(e) =>
 												setProfile({ ...profile, email: e.target.value })
 											}
-											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
 											placeholder="Enter email address"
 										/>
 									</div>
 								</div>
-								<div className="mt-6">
+								<div className="mt-6 flex items-center gap-3">
 									<button
 										onClick={handleProfileUpdate}
-										disabled={loading}
-										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+										disabled={loading || !hasProfileChanges}
+										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										<Save className="h-4 w-4 mr-2" />
 										{loading ? "Updating..." : "Update Profile"}
 									</button>
+									{hasProfileChanges && !loading && (
+										<span className="text-sm text-warning-600 flex items-center">
+											<AlertTriangle className="h-4 w-4 mr-1" />
+											Unsaved changes
+										</span>
+									)}
 								</div>
 							</div>
 						</div>
@@ -403,13 +498,13 @@ const Settings = () => {
 								</h4>
 								<div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
 									<div className="text-center">
-										<div className="text-2xl font-bold text-blue-600">
+										<div className="text-2xl font-bold text-primary-600">
 											{statistics.daysActive}
 										</div>
 										<div className="text-sm text-gray-500">Days Active</div>
 									</div>
 									<div className="text-center">
-										<div className="text-2xl font-bold text-green-600">
+										<div className="text-2xl font-bold text-success-600">
 											{statistics.totalExpenses}
 										</div>
 										<div className="text-sm text-gray-500">Total Expenses</div>
@@ -453,7 +548,7 @@ const Settings = () => {
 														currentPassword: e.target.value,
 													})
 												}
-												className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm pr-10"
+												className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm pr-10"
 												placeholder="Enter current password"
 											/>
 											<button
@@ -489,7 +584,7 @@ const Settings = () => {
 														calculatePasswordStrength(newPassword)
 													);
 												}}
-												className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm pr-10"
+												className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm pr-10"
 												placeholder="Enter new password"
 											/>
 											<button
@@ -510,16 +605,16 @@ const Settings = () => {
 													<div className="flex-1 bg-gray-200 rounded-full h-2">
 														<div
 															className={`h-2 rounded-full transition-all duration-300 ${passwordStrength === 1
-																	? "bg-red-500 w-1/5"
-																	: passwordStrength === 2
-																		? "bg-orange-500 w-2/5"
-																		: passwordStrength === 3
-																			? "bg-yellow-500 w-3/5"
-																			: passwordStrength === 4
-																				? "bg-blue-500 w-4/5"
-																				: passwordStrength === 5
-																					? "bg-green-500 w-full"
-																					: "w-0"
+																? "bg-danger-500 w-1/5"
+																: passwordStrength === 2
+																	? "bg-warning-500 w-2/5"
+																	: passwordStrength === 3
+																		? "bg-warning-500 w-3/5"
+																		: passwordStrength === 4
+																			? "bg-primary-500 w-4/5"
+																			: passwordStrength === 5
+																				? "bg-success-500 w-full"
+																				: "w-0"
 																}`}
 														></div>
 													</div>
@@ -546,7 +641,7 @@ const Settings = () => {
 													confirmPassword: e.target.value,
 												})
 											}
-											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
 											placeholder="Confirm new password"
 										/>
 									</div>
@@ -560,7 +655,7 @@ const Settings = () => {
 											!passwordForm.newPassword ||
 											!passwordForm.confirmPassword
 										}
-										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
 									>
 										<Lock className="h-4 w-4 mr-2" />
 										{loading ? "Changing..." : "Change Password"}
@@ -598,19 +693,25 @@ const Settings = () => {
 													})
 												}
 											/>
-											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
 										</label>
 									</div>
 								</div>
-								<div className="mt-6">
+								<div className="mt-6 flex items-center gap-3">
 									<button
 										onClick={handleSecuritySettingsUpdate}
-										disabled={loading}
-										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+										disabled={loading || !hasSecurityChanges}
+										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										<Save className="h-4 w-4 mr-2" />
 										{loading ? "Saving..." : "Save Security Settings"}
 									</button>
+									{hasSecurityChanges && !loading && (
+										<span className="text-sm text-warning-600 flex items-center">
+											<AlertTriangle className="h-4 w-4 mr-1" />
+											Unsaved changes
+										</span>
+									)}
 								</div>
 							</div>
 						</div>
@@ -650,7 +751,7 @@ const Settings = () => {
 													})
 												}
 											/>
-											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
 										</label>
 									</div>
 									<div>
@@ -665,7 +766,7 @@ const Settings = () => {
 													storageTime: e.target.value,
 												})
 											}
-											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
 										>
 											<option value="12">12 hours</option>
 											<option value="24">24 hours</option>
@@ -685,7 +786,7 @@ const Settings = () => {
 													maxFileSize: e.target.value,
 												})
 											}
-											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
 										>
 											<option value="5">5 MB</option>
 											<option value="10">10 MB</option>
@@ -694,15 +795,21 @@ const Settings = () => {
 										</select>
 									</div>
 								</div>
-								<div className="mt-6">
+								<div className="mt-6 flex items-center gap-3">
 									<button
 										onClick={handleReceiptSettingsUpdate}
-										disabled={loading}
-										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+										disabled={loading || !hasReceiptChanges}
+										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										<Save className="h-4 w-4 mr-2" />
 										{loading ? "Saving..." : "Save Settings"}
 									</button>
+									{hasReceiptChanges && !loading && (
+										<span className="text-sm text-warning-600 flex items-center">
+											<AlertTriangle className="h-4 w-4 mr-1" />
+											Unsaved changes
+										</span>
+									)}
 								</div>
 							</div>
 						</div>
@@ -715,19 +822,19 @@ const Settings = () => {
 								</h4>
 								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 									<div className="text-center">
-										<div className="text-2xl font-bold text-blue-600">
+										<div className="text-2xl font-bold text-primary-600">
 											{statistics.totalUploaded}
 										</div>
 										<div className="text-sm text-gray-500">Total Uploaded</div>
 									</div>
 									<div className="text-center">
-										<div className="text-2xl font-bold text-green-600">
+										<div className="text-2xl font-bold text-success-600">
 											{statistics.autoProcessed}
 										</div>
 										<div className="text-sm text-gray-500">Auto-Processed</div>
 									</div>
 									<div className="text-center">
-										<div className="text-2xl font-bold text-yellow-600">
+										<div className="text-2xl font-bold text-warning-600">
 											{statistics.manualReview}
 										</div>
 										<div className="text-sm text-gray-500">Manual Review</div>
@@ -778,7 +885,7 @@ const Settings = () => {
 													})
 												}
 											/>
-											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
 										</label>
 									</div>
 									<div className="flex items-center justify-between">
@@ -805,7 +912,7 @@ const Settings = () => {
 													})
 												}
 											/>
-											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
 										</label>
 									</div>
 									<div className="flex items-center justify-between">
@@ -832,7 +939,7 @@ const Settings = () => {
 													})
 												}
 											/>
-											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
 										</label>
 									</div>
 									<div className="flex items-center justify-between">
@@ -859,7 +966,7 @@ const Settings = () => {
 													})
 												}
 											/>
-											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
 										</label>
 									</div>
 									<div className="flex items-center justify-between">
@@ -886,19 +993,25 @@ const Settings = () => {
 													})
 												}
 											/>
-											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+											<div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
 										</label>
 									</div>
 								</div>
-								<div className="mt-6">
+								<div className="mt-6 flex items-center gap-3">
 									<button
 										onClick={handleNotificationsUpdate}
-										disabled={loading}
-										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+										disabled={loading || !hasNotificationsChanges}
+										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										<Save className="h-4 w-4 mr-2" />
 										{loading ? "Saving..." : "Save Preferences"}
 									</button>
+									{hasNotificationsChanges && !loading && (
+										<span className="text-sm text-warning-600 flex items-center">
+											<AlertTriangle className="h-4 w-4 mr-1" />
+											Unsaved changes
+										</span>
+									)}
 								</div>
 							</div>
 						</div>
@@ -928,7 +1041,7 @@ const Settings = () => {
 													currency: e.target.value,
 												})
 											}
-											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
 										>
 											<option value="CAD">CAD (C$)</option>
 											<option value="USD">USD ($)</option>
@@ -951,7 +1064,7 @@ const Settings = () => {
 													dateFormat: e.target.value,
 												})
 											}
-											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
 										>
 											<option value="MM/DD/YYYY">MM/DD/YYYY</option>
 											<option value="DD/MM/YYYY">DD/MM/YYYY</option>
@@ -972,7 +1085,7 @@ const Settings = () => {
 													language: e.target.value,
 												})
 											}
-											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
 										>
 											<option value="en">English</option>
 											<option value="es">Español</option>
@@ -994,7 +1107,7 @@ const Settings = () => {
 													timezone: e.target.value,
 												})
 											}
-											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
 										>
 											<option value="America/Toronto">
 												Eastern Time - Toronto (ET)
@@ -1039,7 +1152,7 @@ const Settings = () => {
 													theme: e.target.value,
 												})
 											}
-											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+											className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
 										>
 											<option value="light">Light</option>
 											<option value="dark">Dark</option>
@@ -1047,15 +1160,21 @@ const Settings = () => {
 										</select>
 									</div>
 								</div>
-								<div className="mt-6">
+								<div className="mt-6 flex items-center gap-3">
 									<button
 										onClick={handlePreferencesUpdate}
-										disabled={loading}
-										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+										disabled={loading || !hasPreferencesChanges}
+										className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										<Save className="h-4 w-4 mr-2" />
 										{loading ? "Saving..." : "Save Preferences"}
 									</button>
+									{hasPreferencesChanges && !loading && (
+										<span className="text-sm text-warning-600 flex items-center">
+											<AlertTriangle className="h-4 w-4 mr-1" />
+											Unsaved changes
+										</span>
+									)}
 								</div>
 							</div>
 						</div>
@@ -1073,13 +1192,14 @@ const Settings = () => {
 									Data Export
 								</h4>
 								<p className="text-sm text-gray-600 mb-4">
-									Download a copy of all your data including expenses, receipts,
-									budgets, and account information.
+									Request a copy of all your data including expenses, receipts,
+									budgets, and account information. We'll send it to your email as a
+									ZIP file within 2-5 minutes.
 								</p>
 								<button
 									onClick={handleExportData}
 									disabled={loading}
-									className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+									className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-success-600 hover:bg-success-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-success-500 disabled:opacity-50"
 								>
 									<Download className="h-4 w-4 mr-2" />
 									{loading ? "Preparing Export..." : "Export My Data"}
@@ -1121,22 +1241,22 @@ const Settings = () => {
 						</div>
 
 						{/* Danger Zone */}
-						<div className="bg-white shadow rounded-lg border-l-4 border-red-400">
+						<div className="bg-white shadow rounded-lg border-l-4 border-danger-400">
 							<div className="px-4 py-5 sm:p-6">
-								<h4 className="text-lg font-medium text-red-900 mb-4 flex items-center">
+								<h4 className="text-lg font-medium text-danger-900 mb-4 flex items-center">
 									<Trash2 className="h-5 w-5 mr-2" />
 									Danger Zone
 								</h4>
-								<div className="bg-red-50 border border-red-200 rounded-md p-4">
+								<div className="bg-danger-50 border border-danger-200 rounded-md p-4">
 									<div className="flex">
 										<div className="flex-shrink-0">
-											<AlertTriangle className="h-5 w-5 text-red-400" />
+											<AlertTriangle className="h-5 w-5 text-danger-400" />
 										</div>
 										<div className="ml-3">
-											<h5 className="text-sm font-medium text-red-800">
+											<h5 className="text-sm font-medium text-danger-800">
 												Delete Account
 											</h5>
-											<div className="mt-2 text-sm text-red-700">
+											<div className="mt-2 text-sm text-danger-700">
 												<p>
 													Once you delete your account, there is no going back.
 													Please be certain. This will permanently delete:
@@ -1152,7 +1272,7 @@ const Settings = () => {
 												<button
 													onClick={handleDeleteAccount}
 													disabled={loading}
-													className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+													className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-danger-600 hover:bg-danger-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-danger-500 disabled:opacity-50"
 												>
 													<Trash2 className="h-4 w-4 mr-2" />
 													{loading ? "Deleting..." : "Delete Account"}
@@ -1171,51 +1291,66 @@ const Settings = () => {
 		}
 	};
 
-	return (
-		<MainLayout>
-			<div className="space-y-6">
-				<div className="border-b border-gray-200 pb-4 mb-6">
-					<h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-					<p className="mt-2 text-sm text-gray-600">
-						Manage your account settings and preferences.
-					</p>
-				</div>
-
-				<div className="lg:grid lg:grid-cols-12 lg:gap-x-5">
-					{/* Sidebar */}
-					<aside className="py-6 px-2 sm:px-6 lg:py-0 lg:px-0 lg:col-span-3">
-						<nav className="space-y-1">
-							{tabs.map((tab) => {
-								const Icon = tab.icon;
-								return (
-									<button
-										key={tab.id}
-										onClick={() => setActiveTab(tab.id)}
-										className={`${activeTab === tab.id
-												? "bg-blue-50 border-blue-500 text-blue-700"
-												: "border-transparent text-gray-900 hover:bg-gray-50 hover:text-gray-900"
-											} group border-l-4 px-3 py-2 flex items-center text-sm font-medium w-full text-left`}
-									>
-										<Icon
-											className={`${activeTab === tab.id
-													? "text-blue-500"
-													: "text-gray-400 group-hover:text-gray-500"
-												} flex-shrink-0 -ml-1 mr-3 h-6 w-6`}
-										/>
-										<span className="truncate">{tab.name}</span>
-									</button>
-								);
-							})}
-						</nav>
-					</aside>
-
-					{/* Main content */}
-					<div className="space-y-6 sm:px-6 lg:px-0 lg:col-span-9">
-						{renderTabContent()}
+	// Loading skeleton component
+	const LoadingSkeleton = () => (
+		<div className="space-y-6">
+			<div className="bg-white shadow rounded-lg animate-pulse">
+				<div className="px-4 py-5 sm:p-6">
+					<div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
+					<div className="space-y-3">
+						<div className="h-10 bg-gray-200 rounded"></div>
+						<div className="h-10 bg-gray-200 rounded"></div>
+						<div className="h-10 bg-gray-200 rounded"></div>
 					</div>
 				</div>
 			</div>
-		</MainLayout>
+		</div>
+	);
+
+	return (
+		<div className="space-y-6">
+			<div className="border-b border-gray-200 pb-4 mb-6">
+				<h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+				<p className="mt-2 text-sm text-gray-600">
+					Manage your account settings and preferences.
+				</p>
+			</div>
+
+			<div className="lg:grid lg:grid-cols-12 lg:gap-x-5">
+				{/* Sidebar */}
+				<aside className="py-6 px-2 sm:px-6 lg:py-0 lg:px-0 lg:col-span-3">
+					<nav className="space-y-1">
+						{tabs.map((tab) => {
+							const Icon = tab.icon;
+							return (
+								<button
+									key={tab.id}
+									onClick={() => setActiveTab(tab.id)}
+									disabled={initialLoading}
+									className={`${activeTab === tab.id
+										? "bg-primary-50 border-primary-500 text-primary-700"
+										: "border-transparent text-gray-900 hover:bg-gray-50 hover:text-gray-900"
+										} group border-l-4 px-3 py-2 flex items-center text-sm font-medium w-full text-left disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150`}
+								>
+									<Icon
+										className={`${activeTab === tab.id
+											? "text-primary-500"
+											: "text-gray-400 group-hover:text-gray-500"
+											} flex-shrink-0 -ml-1 mr-3 h-6 w-6`}
+									/>
+									<span className="truncate">{tab.name}</span>
+								</button>
+							);
+						})}
+					</nav>
+				</aside>
+
+				{/* Main content */}
+				<div className="space-y-6 sm:px-6 lg:px-0 lg:col-span-9">
+					{initialLoading ? <LoadingSkeleton /> : renderTabContent()}
+				</div>
+			</div>
+		</div>
 	);
 };
 

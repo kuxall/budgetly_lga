@@ -128,7 +128,7 @@ const ResetPassword = () => {
 									type={showPassword ? "text" : "password"}
 									autoComplete="new-password"
 									required
-									className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+									className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
 									placeholder="Enter new password"
 									value={password}
 									onChange={(e) => setPassword(e.target.value)}
@@ -164,7 +164,7 @@ const ResetPassword = () => {
 									type={showConfirmPassword ? "text" : "password"}
 									autoComplete="new-password"
 									required
-									className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+									className="appearance-none rounded-md relative block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary-500 focus:border-primary-500 focus:z-10 sm:text-sm"
 									placeholder="Confirm new password"
 									value={confirmPassword}
 									onChange={(e) => setConfirmPassword(e.target.value)}
@@ -185,13 +185,13 @@ const ResetPassword = () => {
 					</div>
 
 					{password && confirmPassword && password !== confirmPassword && (
-						<div className="text-sm text-red-600">Passwords don't match</div>
+						<div className="text-sm text-danger-600">Passwords don't match</div>
 					)}
 
 					<button
 						type="submit"
 						disabled={isLoading || password !== confirmPassword}
-						className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+						className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
 					>
 						{isLoading ? "Resetting..." : "Reset Password"}
 					</button>
@@ -199,7 +199,7 @@ const ResetPassword = () => {
 					<div className="text-center">
 						<Link
 							to="/login"
-							className="text-sm text-blue-600 hover:text-blue-500 transition-colors"
+							className="text-sm text-primary-600 hover:text-primary-500 transition-colors"
 						>
 							Back to login
 						</Link>

@@ -13,7 +13,8 @@ import ReceiptsPage from "./pages/Receipts/ReceiptsPage";
 import LoadingSpinner from "./components/ui/LoadingSpinner";
 import Settings from "./pages/Settings/Settings";
 import AIInsights from "./pages/AIInsights/AIInsights";
-
+import Reports from "./pages/Reports/Reports";
+import Layout from "./components/layout/Layout";
 
 import { useAuthStore } from "./store/authStore";
 
@@ -67,13 +68,17 @@ function App() {
               )
             }
           />
-          <Route path="/dashboard" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
-          <Route path="/income" element={isAuthenticated ? <Income /> : <Navigate to="/login" />} />
-          <Route path="/expenses" element={isAuthenticated ? <Expenses /> : <Navigate to="/login" />} />
-          <Route path="/budget" element={isAuthenticated ? <Budget /> : <Navigate to="/login" />} />
-          <Route path="/ai-insights" element={isAuthenticated ? <AIInsights /> : <Navigate to="/login" />} />
-          <Route path="/settings" element={isAuthenticated ? <Settings /> : <Navigate to="/login" />} />
-          <Route path="/receipts" element={isAuthenticated ? <ReceiptsPage /> : <Navigate to="/login" />} />
+          {/* Protected routes with Layout (Header + Sidebar) */}
+          <Route element={isAuthenticated ? <Layout /> : <Navigate to="/login" />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/income" element={<Income />} />
+            <Route path="/expenses" element={<Expenses />} />
+            <Route path="/budgets" element={<Budget />} />
+            <Route path="/receipts" element={<ReceiptsPage />} />
+            <Route path="/ai-insights" element={<AIInsights />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/settings" element={<Settings />} />
+          </Route>
         </Routes>
       </div>
     </Router>

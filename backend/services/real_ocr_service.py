@@ -6,6 +6,13 @@ import io
 import logging
 from datetime import datetime
 from typing import Dict, List
+try:
+    from pdf2image import convert_from_bytes
+    PDF2IMAGE_AVAILABLE = True
+except ImportError:
+    PDF2IMAGE_AVAILABLE = False
+from PIL import Image
+
 
 import httpx
 from .model_config_service import model_config
@@ -14,18 +21,114 @@ logger = logging.getLogger(__name__)
 
 
 class ReceiptOCRService:
-    """Service for extracting data from receipt images using OpenAI GPT-4o."""
+    """
+    Advanced OCR service for extracting structured data from receipt images using OpenAI GPT-4o.
+
+    This service provides comprehensive receipt processing capabilities including:
+    - Multi-format support (JPEG, PNG, PDF)
+    - AI-powered data extraction with confidence scoring
+    - Automatic validation and data cleaning
+    - Fallback mechanisms for error handling
+    - Duplicate detection and merchant normalization
+
+    The service uses OpenAI's GPT-4o model with vision capabilities to analyze
+    receipt images and extract structured data including merchant name, amount,
+    date, items, and categorization.
+
+    Attributes:
+        openai_api_key (str): OpenAI API key for authentication
+        openai_url (str): OpenAI API endpoint URL
+        ocr_model (str): Model name for OCR processing
+        validation_model (str): Model name for data validation
+
+    Raises:
+        ValueError: If OPENAI_API_KEY environment variable is not set
+
+    Example:
+        >>> ocr_service = ReceiptOCRService()
+        >>> result = await ocr_service.extract_receipt_data(image_data, "receipt.jpg")
+        >>> print(f"Merchant: {result['merchant']}, Amount: ${result['amount']}")
+    """
 
     def __init__(self):
+        """
+        Initialize the OCR service with OpenAI configuration.
+
+        Raises:
+            ValueError: If OPENAI_API_KEY environment variable is not set
+        """
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         if not self.openai_api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         self.openai_url = "https://api.openai.com/v1/chat/completions"
 
-        # Get model configurations
+        # Get model configurations from centralized config
         self.ocr_model = model_config.get_model_for_feature("ocr")
         self.validation_model = model_config.get_model_for_feature(
             "validation")
+
+    async def _convert_pdf_to_image_and_analyze(self, pdf_data: bytes) -> Dict:
+        """
+        Convert PDF pages to images and run them through the vision pipeline.
+        Returns the best result (highest confidence) across the first few pages.
+        """
+        if not PDF2IMAGE_AVAILABLE:
+            logger.warning("pdf2image not available - PDF conversion disabled")
+            fallback = self._create_fallback_response()
+            fallback["error"] = "PDF processing requires poppler installation"
+            return fallback
+
+        try:
+            # Check for common Poppler installation paths on Windows
+            poppler_path = None
+            possible_paths = [
+                r"C:\poppler\poppler-24.08.0\Library\bin",
+                r"C:\Program Files\poppler\Library\bin",
+                r"C:\poppler\Library\bin",
+                r"C:\Program Files (x86)\poppler\Library\bin",
+                r"C:\ProgramData\chocolatey\bin",
+            ]
+
+            for path in possible_paths:
+                if os.path.exists(path):
+                    poppler_path = path
+                    logger.info(f"Found Poppler at: {poppler_path}")
+                    break
+
+            # Render first 2–3 pages to images
+            # 150–200 DPI is usually enough
+            if poppler_path:
+                pages = convert_from_bytes(
+                    pdf_data, dpi=200, poppler_path=poppler_path)
+            else:
+                pages = convert_from_bytes(pdf_data, dpi=200)
+
+            best_result = self._create_fallback_response()
+            best_conf = best_result.get("confidence", 0.0)
+
+            for idx, page in enumerate(pages[:3]):
+                buf = io.BytesIO()
+                # Compress to reasonable JPEG
+                page.save(buf, format="JPEG", optimize=True, quality=85)
+                image_bytes = buf.getvalue()
+                base64_image = base64.b64encode(image_bytes).decode("utf-8")
+
+                prompt = self._create_receipt_analysis_prompt()
+                result = await self._call_openai_vision(base64_image, prompt)
+
+                conf = float(result.get("confidence", 0.0))
+                if conf > best_conf:
+                    best_conf = conf
+                    best_result = result
+
+            return best_result
+
+        except Exception as e:
+            logger.error(f"PDF→image conversion failed: {e}")
+            # fall back to generic failure response
+            fallback = self._create_fallback_response()
+            fallback["error"] = f"PDF to image conversion failed: {str(e)}"
+            return fallback
 
     async def extract_receipt_data(self, image_data: bytes, filename: str) -> Dict:
         """Extract structured data from receipt image using GPT-4 Vision."""
@@ -33,7 +136,7 @@ class ReceiptOCRService:
         try:
             # Check if this is a PDF file
             if image_data.startswith(b'%PDF'):
-                print("📄 PDF detected - trying text extraction first")
+                logger.info("📄 PDF detected - trying text extraction first")
                 pdf_result = await self._extract_pdf_text(image_data)
 
                 # If PDF text extraction failed or has low confidence, try converting to image
@@ -41,16 +144,18 @@ class ReceiptOCRService:
                     pdf_result.get("confidence", 0) < 0.5 or
                         not pdf_result.get("is_receipt", False)):
 
-                    print(
+                    logger.info(
                         "📄 PDF text extraction failed/low confidence - trying image conversion")
                     try:
                         # Try to convert PDF to image and use vision API
                         image_result = await self._convert_pdf_to_image_and_analyze(image_data)
                         if image_result.get("confidence", 0) > pdf_result.get("confidence", 0):
-                            print("✅ Image conversion gave better results")
+                            logger.info(
+                                "✅ Image conversion gave better results")
                             return image_result
                     except Exception as e:
-                        print(f"⚠️ PDF to image conversion failed: {e}")
+                        logger.warning(
+                            f"⚠️ PDF to image conversion failed: {e}")
 
                 return pdf_result
 
@@ -66,7 +171,7 @@ class ReceiptOCRService:
             return extracted_data
 
         except (ValueError, TypeError, ConnectionError) as e:
-            print(f"OCR extraction error: {e}")
+            logger.error(f"OCR extraction error: {e}")
             return {
                 "is_receipt": True,  # Allow processing to continue
                 "error": str(e),
@@ -94,59 +199,71 @@ class ReceiptOCRService:
                 }
 
             # No upper size limit - let the validation service handle optimization
-            print(
+            logger.debug(
                 f"📋 Validating receipt: {len(image_data)} bytes, filename: {filename}")
             return {"valid": True}
 
         except Exception as e:
-            print(f"⚠️ Validation warning: {str(e)}")
+            logger.warning(f"⚠️ Validation warning: {str(e)}")
             # Even if validation has issues, allow processing
             return {"valid": True, "warning": str(e)}
 
     def _create_receipt_analysis_prompt(self) -> str:
-        """Create a detailed prompt for GPT-4 to analyze receipts with enhanced validation."""
+        """Compact prompt for GPT-4o Vision: validate & extract any receipt/transaction doc."""
         return """
-You are an expert receipt analyzer. Analyze this receipt image and extract information accurately.
+You are an expert Receipt Validator & Extractor with fraud-detection capabilities.
 
-MERCHANT NAME DETECTION - Look for business names in these locations:
-- Top of receipt (header area)
-- Business names with colons, dashes, or special formatting (e.g., "HS BAR : AGENCY01", "STORE - LOCATION")
-- Names above address information
-- Any text that appears to be a business identifier
-- Restaurant/bar names, store chains, service providers
-- Even abbreviated or coded business names should be captured
+You will be given an IMAGE. Your tasks:
+1) Decide if it is a legitimate purchase/payment document (receipt, invoice, bill, subscription charge, or transaction confirmation).
+2) If NOT a valid receipt → return NON-RECEIPT JSON.
+3) If valid → return RECEIPT JSON with extracted fields.
+4) Output ONLY a single JSON object. No explanations, markdown, or code fences.
 
-DATE EXTRACTION - Look for:
-- Date in MM/DD/YY, DD/MM/YY, or YYYY-MM-DD format
-- Time stamps (convert date to YYYY-MM-DD format)
-- Transaction dates, not printed dates
+VALID receipts include (non-exhaustive):
+- Store/restaurant/grocery/gas receipts (paper or digital)
+- App/digital receipts (Google Play, Apple App Store, Steam, Uber, Lyft, DoorDash, Amazon, etc.)
+- Online order/email confirmations
+- Bank/credit/debit transaction confirmations
+- Service invoices/bills (utilities, phone, internet, subscriptions)
 
-AMOUNT EXTRACTION - Find the final total:
-- Look for "TOTAL", "TOTAL DUE", "AMOUNT DUE"
-- The largest monetary amount on the receipt
-- Final amount after taxes and fees
+REJECT as non-receipt if:
+- Random photo, meme, ID, ticket, document unrelated to purchases
+- No clear merchant/service/business name
+- No transaction amount/total
+- Date clearly < 1990 or > 30 days in future
+- Amounts obviously nonsensical (e.g., negative total)
 
-If this is a legitimate receipt, return this JSON structure:
+NON-RECEIPT JSON FORMAT:
+{
+  "is_receipt": false,
+  "confidence": 0.0,
+  "error": "Short description of what the image shows",
+  "merchant": "N/A",
+  "date": "1900-01-01",
+  "total_amount": 0.0,
+  "category": "Other"
+}
 
+VALID RECEIPT JSON FORMAT:
 {
   "is_receipt": true,
-  "merchant": "Exact business name from receipt (be liberal in detection)",
+  "merchant": "Store or service name",
   "date": "YYYY-MM-DD",
   "total_amount": 0.00,
   "subtotal": 0.00,
   "tax": 0.00,
   "items": [
     {
-      "name": "Item name exactly as shown",
+      "name": "Item name",
       "price": 0.00,
       "quantity": 1
     }
   ],
-  "category": "Food & Dining for restaurants/bars, Shopping for retail, Transportation for gas/transport, Other if unclear",
-  "payment_method": "credit_card, debit_card, cash, or other",
-  "address": "Store address if visible",
-  "phone": "Store phone if visible", 
-  "confidence": 0.85,
+  "category": "Food & Dining | Transportation | Shopping | Entertainment | Utilities | Healthcare | Education | Other",
+  "payment_method": "credit_card | debit_card | cash | bank_transfer | digital_wallet | other",
+  "address": "Store address if visible, else empty string",
+  "phone": "Store phone if visible, else empty string",
+  "confidence": 0.0,
   "validation_flags": {
     "has_merchant": true,
     "has_date": true,
@@ -157,16 +274,47 @@ If this is a legitimate receipt, return this JSON structure:
   }
 }
 
-IMPORTANT EXTRACTION GUIDELINES:
-1. Be LIBERAL with merchant name detection - capture any business identifier
-2. Extract ALL line items with their exact names and prices
-3. Ensure total_amount matches the receipt's final total
-4. For restaurants/bars/cafes, use "Food & Dining" category
-5. Convert dates to YYYY-MM-DD format (e.g., 8/20/24 becomes 2024-08-20)
-6. Include tax amounts separately if shown
-7. Set confidence based on text clarity, not strictness of validation
+EXTRACTION RULES (for is_receipt = true):
+- Merchant: main business/platform name at header or near address/logo.
+- Date: use transaction/payment date; convert to "YYYY-MM-DD".
+- Items: extract all line items with name, price, quantity (default quantity=1 if missing).
+  - If digital receipt without itemization, create ONE item with best description (e.g., app/service name).
+- Amounts:
+  - total_amount = final charge ("TOTAL", "AMOUNT DUE", "AMOUNT CHARGED", etc.).
+  - If subtotal and tax exist, use them; else set subtotal = total_amount and tax = 0.00.
+  - validation_flags.amounts_consistent = true if subtotal + tax ≈ total_amount (small rounding allowed) or only total is present with no contradiction.
+- Category:
+  - Restaurants/cafes/food delivery → "Food & Dining"
+  - Grocery/supermarkets → "Food & Dining"
+  - Gas/fuel/transit/Uber/Lyft → "Transportation"
+  - Retail/Amazon/clothing/general shopping → "Shopping"
+  - App stores, games, streaming → "Entertainment"
+  - Utilities (phone/internet/electricity/water) → "Utilities"
+  - Medical/clinic/pharmacy → "Healthcare"
+  - Tuition/courses → "Education"
+  - Else → "Other"
+- Payment method:
+  - Visa/Mastercard/AMEX/CREDIT → "credit_card"
+  - DEBIT → "debit_card"
+  - PayPal/Apple Pay/Google Pay etc. → "digital_wallet"
+  - Bank transfer/wire → "bank_transfer"
+  - CASH → "cash"
+  - Otherwise → "other"
+- Address/phone: fill if clearly visible; else "".
 
-ONLY return JSON, no additional text. Be accurate but not overly restrictive.
+CONFIDENCE & FLAGS:
+- confidence:
+  - 0.8–1.0: clear, typical receipt/transaction doc.
+  - 0.4–0.7: legitimate but low-quality/cropped/partially missing.
+  - 0.0–0.3: likely not a receipt or very unclear.
+- validation_flags:
+  - has_merchant: merchant present?
+  - has_date: transaction date present?
+  - has_items: at least one item/service line?
+  - has_total: clear total/amount charged?
+  - date_reasonable: year ≥ 1990 and not >30 days in future.
+
+Return ONLY the JSON object.
 """
 
     async def _call_openai_vision(self, base64_image: str, prompt: str) -> Dict:
@@ -206,10 +354,10 @@ ONLY return JSON, no additional text. Be accurate but not overly restrictive.
             # Configure httpx client with better SSL handling
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(30.0, connect=10.0),
-                verify=True, 
+                verify=True,
                 limits=httpx.Limits(
                     max_keepalive_connections=5, max_connections=10),
-                http2=False  
+                http2=False
             ) as client:
                 print(f"📡 Making request to: {self.openai_url}")
                 response = await client.post(self.openai_url, headers=headers, json=payload)
@@ -572,34 +720,40 @@ ONLY return JSON, no additional text. Be accurate but not overly restrictive.
             }
 
     def _create_pdf_text_analysis_prompt(self) -> str:
-        """Create a prompt for analyzing PDF text content."""
+        """Compact prompt for analyzing extracted PDF text as a receipt/transaction."""
         return """
-You are an expert receipt analyzer. Analyze this receipt text and determine if it's a legitimate receipt, then extract information accordingly.
+You are an expert Receipt Validator & Extractor with fraud-detection capabilities.
 
-FIRST: Validate if this is actually a receipt by checking for:
-- Merchant/business name
-- Transaction date and time
-- Itemized purchases or services
-- Total amount and payment information
-- Receipt format (not random text or document)
+You will be given RAW TEXT extracted from a PDF. It may be a receipt, invoice, bill, transaction confirmation, or something else.
 
-If this is NOT a legitimate receipt, return:
+Your tasks:
+1) Decide if the text is a legitimate purchase/payment document.
+2) If NOT a valid receipt → return NON-RECEIPT JSON.
+3) If valid → return RECEIPT JSON with extracted fields.
+4) Output ONLY a single JSON object. No explanations, markdown, or code fences.
+
+Treat as valid if text clearly indicates:
+- A merchant/service name,
+- A transaction or billing date,
+- A total amount (and optionally items),
+Typical examples: store receipts, online order confirmations, invoices, bills, subscription charges, bank/card transaction records.
+
+NON-RECEIPT JSON FORMAT:
 {
   "is_receipt": false,
   "confidence": 0.0,
-  "error": "Not a valid receipt - describe what you see instead",
+  "error": "Short description of what the text appears to be",
   "merchant": "N/A",
   "date": "1900-01-01",
   "total_amount": 0.0,
   "category": "Other"
 }
 
-If this IS a legitimate receipt, extract the following information in JSON format:
-
+VALID RECEIPT JSON FORMAT:
 {
   "is_receipt": true,
-  "merchant": "Store/restaurant name",
-  "date": "YYYY-MM-DD format",
+  "merchant": "Store or service name",
+  "date": "YYYY-MM-DD",
   "total_amount": 0.00,
   "subtotal": 0.00,
   "tax": 0.00,
@@ -610,11 +764,11 @@ If this IS a legitimate receipt, extract the following information in JSON forma
       "quantity": 1
     }
   ],
-  "category": "One of: Food & Dining, Transportation, Shopping, Entertainment, Utilities, Healthcare, Education, Other",
-  "payment_method": "One of: credit_card, debit_card, cash, bank_transfer, digital_wallet, other",
-  "address": "Store address if visible",
-  "phone": "Store phone if visible",
-  "confidence": 0.95,
+  "category": "Food & Dining | Transportation | Shopping | Entertainment | Utilities | Healthcare | Education | Other",
+  "payment_method": "credit_card | debit_card | cash | bank_transfer | digital_wallet | other",
+  "address": "Store address if visible in text, else empty string",
+  "phone": "Store phone if visible in text, else empty string",
+  "confidence": 0.0,
   "validation_flags": {
     "has_merchant": true,
     "has_date": true,
@@ -625,34 +779,28 @@ If this IS a legitimate receipt, extract the following information in JSON forma
   }
 }
 
-CRITICAL VALIDATION RULES:
-1. REJECT if text shows: random documents, emails, articles, or non-receipt content
-2. REJECT if no clear merchant name or business information
-3. REJECT if no transaction date or unreasonable date
-4. REJECT if no itemized content or total amount
-5. REJECT if amounts don't make mathematical sense
-6. Set confidence to 0.0-0.3 for suspicious or unclear text
-7. Set confidence to 0.4-0.7 for poor quality but legitimate receipts
-8. Set confidence to 0.8-1.0 for clear, legitimate receipts
+TEXT-BASED EXTRACTION RULES (for is_receipt = true):
+- Merchant: use header/company name, invoice header, or obvious sender/issuer.
+- Date: pick transaction/billing/payment date; convert to "YYYY-MM-DD".
+- Items:
+  - Use itemized lines, table rows, or bullet lines with descriptions and prices.
+  - If no clear itemization (e.g., “Monthly subscription” only), create ONE item with best description.
+- Amounts:
+  - total_amount = “Total”, “Amount due”, “Amount charged”, etc.
+  - If subtotal and tax are present, use them; else set subtotal = total_amount and tax = 0.00.
+  - amounts_consistent = true if subtotal + tax ≈ total_amount or only total exists.
+- Category + payment_method: same logic as the image prompt (Food & Dining, Transportation, Shopping, etc., and credit_card / debit_card / cash / bank_transfer / digital_wallet / other).
+- Address/phone: include only if clearly present in text; else "".
 
-EXTRACTION RULES (only if is_receipt = true):
-1. Extract ALL visible items with their exact prices
-2. Ensure total_amount matches the receipt total exactly
-3. Verify subtotal + tax = total (flag if inconsistent)
-4. Choose the most appropriate category based on merchant and items
-5. Payment method: look for card types, cash mentions, etc.
-6. Use actual date from receipt, validate it's reasonable
-7. For grocery stores use "Food & Dining"
-8. For gas stations use "Transportation"
-9. For restaurants/cafes use "Food & Dining"
+VALIDATION & CONFIDENCE:
+- date_reasonable = false if parsed date < 1990 or >30 days in the future.
+- confidence:
+  - 0.8–1.0: clear receipt/invoice/transaction doc.
+  - 0.4–0.7: legitimate but noisy/partial.
+  - 0.0–0.3: probably not a receipt.
 
-SECURITY REQUIREMENTS:
-- Return ONLY valid JSON, no additional text or explanations
-- Do not process or describe inappropriate content
-- Flag suspicious patterns in validation_flags
-- Be conservative with confidence scores for unclear text
-
-Analyze the receipt text carefully and provide accurate validation and extraction.
+Base everything ONLY on the provided text.  
+Return ONLY the JSON object.
 """
 
     async def _call_openai_text(self, text_content: str, prompt: str) -> Dict:

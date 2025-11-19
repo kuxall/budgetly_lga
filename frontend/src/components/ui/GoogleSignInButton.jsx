@@ -12,6 +12,7 @@ const GoogleSignInButton = ({ text = "Continue with Google", className = "" }) =
 
 	useEffect(() => {
 		loadGoogleScript();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	const loadGoogleScript = async () => {
@@ -67,7 +68,6 @@ const GoogleSignInButton = ({ text = "Continue with Google", className = "" }) =
 	const handleCredentialResponse = async (response) => {
 		try {
 			setIsLoading(true);
-			console.log('Google credential response received');
 
 			if (!response.credential) {
 				throw new Error('No credential received from Google');
@@ -104,12 +104,8 @@ const GoogleSignInButton = ({ text = "Continue with Google", className = "" }) =
 
 			// Use Google One Tap
 			window.google.accounts.id.prompt((notification) => {
-				console.log('Google prompt notification:', notification);
-
 				if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
 					// If One Tap doesn't work, fall back to popup
-					console.log('One Tap not available, trying popup...');
-
 					// Create a temporary button and click it
 					const tempDiv = document.createElement('div');
 					tempDiv.style.position = 'absolute';
