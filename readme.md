@@ -131,7 +131,8 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret
 5. Start the server:
 
 ```bash
-uvicorn main:app --reload --port 8001
+cd backend
+python start.py
 ```
 
 The API will be available at `http://localhost:8001`
